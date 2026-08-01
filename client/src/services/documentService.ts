@@ -1,5 +1,6 @@
 import api from '../api/axios';
 import type { Document, DocumentListResponse } from '../types/document';
+import type { User } from '../types';
 
 /**
  * Create a new document.
@@ -58,4 +59,53 @@ export const updateDocumentContent = async (
 ): Promise<Document> => {
   const res = await api.patch(`/documents/${id}/content`, { content });
   return res.data.data.document;
+};
+
+/**
+ * Add a collaborator by email.
+ */
+export const addCollaborator = async (
+  id: string,
+  email: string,
+  role: 'editor' | 'viewer' | 'commenter'
+): Promise<Document> => {
+  const res = await api.post(`/documents/${id}/collaborators`, { email, role });
+  return res.data.data.document;
+};
+
+/**
+ * List collaborators for a document.
+ */
+export const getCollaborators = async (
+  id: string
+): Promise<{ owner: Document['owner']; collaborators: Document['collaborators'] }> => {
+  const res = await api.get(`/documents/${id}/collaborators`);
+  return res.data.data;
+};
+
+/**
+ * Update a collaborator's role.
+ */
+export const updateCollaboratorRole = async (
+  id: string,
+  userId: string,
+  role: 'editor' | 'viewer' | 'commenter'
+): Promise<Document> => {
+  const res = await api.patch(`/documents/${id}/collaborators/${userId}`, { role });
+  return res.data.data.document;
+};
+
+/**
+ * Remove a collaborator or leave document.
+ */
+export const removeCollaborator = async (id: string, userId: string): Promise<void> => {
+  await api.delete(`/documents/${id}/collaborators/${userId}`);
+};
+
+/**
+ * Search users by name or email for sharing autocomplete.
+ */
+export const searchUsers = async (query: string): Promise<Pick<User, '_id' | 'name' | 'email' | 'avatarColor'>[]> => {
+  const res = await api.get('/users/search', { params: { q: query } });
+  return res.data.data.users;
 };

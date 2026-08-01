@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2 } from 'lucide-react';
+import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2, Eye, MessageSquare, Pencil } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import type { Document } from '../../types/document';
 
@@ -47,6 +47,16 @@ export const DocumentCard = ({
 
   const isOwner = document.owner._id === currentUserId;
   const collaboratorCount = document.collaborators.length;
+
+  // Determine the user's role on this document
+  const myCollaborator = document.collaborators.find(c => c.user._id === currentUserId);
+  const myRole = isOwner ? 'owner' : (myCollaborator?.role || null);
+
+  const roleConfig = {
+    viewer: { label: 'Viewer', icon: Eye, color: 'text-gray-500 bg-gray-50' },
+    commenter: { label: 'Commenter', icon: MessageSquare, color: 'text-violet-600 bg-violet-50' },
+    editor: { label: 'Editor', icon: Pencil, color: 'text-blue-600 bg-blue-50' },
+  } as const;
 
   // Show up to 3 collaborator avatars
   const visibleCollaborators = document.collaborators.slice(0, 3);
@@ -137,6 +147,13 @@ export const DocumentCard = ({
             {isOwner ? 'Owned by you' : `Shared by ${document.owner.name}`}
           </p>
         </div>
+        {/* Role badge for shared documents */}
+        {!isOwner && myRole && myRole !== 'owner' && (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full shrink-0 ${roleConfig[myRole].color}`}>
+            {(() => { const Icon = roleConfig[myRole].icon; return <Icon className="h-3 w-3" />; })()}
+            {roleConfig[myRole].label}
+          </span>
+        )}
       </div>
 
       {/* Footer: updated time + collaborators */}

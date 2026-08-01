@@ -7,6 +7,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import LinkExtension from '@tiptap/extension-link';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { PresenceAvatars } from '../components/editor/PresenceAvatars';
+import { ShareModal } from '../components/documents/ShareModal';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
 import { useAuth } from '../hooks/useAuth';
@@ -20,6 +21,9 @@ import {
   Check,
   CircleDot,
   RefreshCw,
+  Share2,
+  Eye,
+  Lock,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
@@ -38,6 +42,16 @@ export const EditorPage = () => {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [title, setTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  // ---- Permission Derivation ----
+  const currentUserId = user?._id;
+  const isOwner = document ? document.owner._id === currentUserId : false;
+  const userCollaborator = document?.collaborators.find(
+    (c) => c.user._id === currentUserId
+  );
+  const userRole = isOwner ? 'owner' : (userCollaborator?.role || 'viewer');
+  const canEdit = isOwner || userRole === 'editor';
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedDisplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -231,6 +245,13 @@ export const EditorPage = () => {
     editorRef.current = editor;
   }, [editor]);
 
+  // Sync editor editable state based on permissions
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(canEdit);
+    }
+  }, [editor, canEdit]);
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (pendingContentRef.current && id) {
@@ -346,7 +367,7 @@ export const EditorPage = () => {
               <ArrowLeft className="h-5 w-5" />
             </button>
 
-            {isEditingTitle ? (
+            {isEditingTitle && isOwner ? (
               <input
                 type="text"
                 value={title}
@@ -358,27 +379,59 @@ export const EditorPage = () => {
                 maxLength={255}
               />
             ) : (
-              <h1
-                onClick={() => setIsEditingTitle(true)}
-                className="text-lg font-semibold text-gray-900 truncate cursor-pointer hover:text-blue-700 transition-colors px-1 py-0.5 max-w-lg"
-                title="Click to rename"
-              >
-                {title}
-              </h1>
+              <div className="flex items-center gap-2 max-w-lg min-w-0">
+                <h1
+                  onClick={() => isOwner && setIsEditingTitle(true)}
+                  className={`text-lg font-semibold text-gray-900 truncate px-1 py-0.5 ${
+                    isOwner ? 'cursor-pointer hover:text-blue-700' : ''
+                  }`}
+                  title={isOwner ? 'Click to rename' : undefined}
+                >
+                  {title}
+                </h1>
+                {!isOwner && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded shrink-0 capitalize">
+                    {canEdit ? (
+                      <Lock className="h-3 w-3 text-gray-400" />
+                    ) : (
+                      <Eye className="h-3 w-3 text-gray-400" />
+                    )}
+                    {userRole}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Right: Presence Avatars + Save Status */}
-          <div className="flex items-center gap-4 shrink-0 ml-4">
+          {/* Right: Presence Avatars + Share Button + Save Status */}
+          <div className="flex items-center gap-3 shrink-0 ml-4">
             <PresenceAvatars users={activeUsers} currentUserId={user?._id} />
             <div className="h-4 w-px bg-gray-200" />
-            <SaveIndicator status={saveStatus} onRetry={retrySave} />
+            <button
+              onClick={() => setIsShareModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              Share
+            </button>
+            {canEdit && <SaveIndicator status={saveStatus} onRetry={retrySave} />}
           </div>
         </div>
       </header>
 
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        document={document}
+        onDocumentUpdate={(updated) => {
+          setDocument(updated);
+          setTitle(updated.title);
+        }}
+      />
+
       {/* Toolbar */}
-      <EditorToolbar editor={editor} />
+      <EditorToolbar editor={editor} disabled={!canEdit} />
 
       {/* Editor Content Container (Paper style) */}
       <div className="flex-1 max-w-4xl w-full mx-auto py-12 px-4 sm:px-6">

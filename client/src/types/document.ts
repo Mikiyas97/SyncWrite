@@ -1,4 +1,4 @@
-export type DocumentRole = 'owner' | 'editor' | 'viewer';
+export type DocumentRole = 'owner' | 'editor' | 'viewer' | 'commenter';
 
 export interface DocumentCollaborator {
   user: {

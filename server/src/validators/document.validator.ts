@@ -38,3 +38,30 @@ export const updateContentSchema = z.object({
     content: z.record(z.string(), z.any()),
   }),
 });
+
+export const addCollaboratorSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, 'Document ID is required'),
+  }),
+  body: z.object({
+    email: z.string().email('Invalid email address').trim().toLowerCase(),
+    role: z.enum(['editor', 'viewer', 'commenter']),
+  }),
+});
+
+export const updateCollaboratorRoleSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, 'Document ID is required'),
+    userId: z.string().min(1, 'User ID is required'),
+  }),
+  body: z.object({
+    role: z.enum(['editor', 'viewer', 'commenter']),
+  }),
+});
+
+export const removeCollaboratorSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, 'Document ID is required'),
+    userId: z.string().min(1, 'User ID is required'),
+  }),
+});

@@ -20,6 +20,7 @@ import {
 
 interface EditorToolbarProps {
   editor: Editor | null;
+  disabled?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -54,7 +55,7 @@ const ToolbarDivider = () => (
   <div className="w-px h-6 bg-gray-200 mx-1 self-center" />
 );
 
-export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
+export const EditorToolbar = ({ editor, disabled = false }: EditorToolbarProps) => {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
 
@@ -98,6 +99,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().setParagraph().run()}
           isActive={editor.isActive('paragraph') && !editor.isActive('heading')}
+          disabled={disabled}
           title="Paragraph"
         >
           <Pilcrow className="h-4 w-4" />
@@ -105,6 +107,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           isActive={editor.isActive('heading', { level: 1 })}
+          disabled={disabled}
           title="Heading 1"
         >
           <Heading1 className="h-4 w-4" />
@@ -112,6 +115,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           isActive={editor.isActive('heading', { level: 2 })}
+          disabled={disabled}
           title="Heading 2"
         >
           <Heading2 className="h-4 w-4" />
@@ -119,6 +123,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           isActive={editor.isActive('heading', { level: 3 })}
+          disabled={disabled}
           title="Heading 3"
         >
           <Heading3 className="h-4 w-4" />
@@ -130,6 +135,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           isActive={editor.isActive('bold')}
+          disabled={disabled}
           title="Bold (Ctrl+B)"
         >
           <Bold className="h-4 w-4" />
@@ -137,6 +143,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           isActive={editor.isActive('italic')}
+          disabled={disabled}
           title="Italic (Ctrl+I)"
         >
           <Italic className="h-4 w-4" />
@@ -144,6 +151,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           isActive={editor.isActive('underline')}
+          disabled={disabled}
           title="Underline (Ctrl+U)"
         >
           <Underline className="h-4 w-4" />
@@ -155,6 +163,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           isActive={editor.isActive('bulletList')}
+          disabled={disabled}
           title="Bullet List"
         >
           <List className="h-4 w-4" />
@@ -162,6 +171,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
+          disabled={disabled}
           title="Ordered List"
         >
           <ListOrdered className="h-4 w-4" />
@@ -173,6 +183,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           isActive={editor.isActive({ textAlign: 'left' })}
+          disabled={disabled}
           title="Align Left"
         >
           <AlignLeft className="h-4 w-4" />
@@ -180,6 +191,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
           isActive={editor.isActive({ textAlign: 'center' })}
+          disabled={disabled}
           title="Align Center"
         >
           <AlignCenter className="h-4 w-4" />
@@ -187,6 +199,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
           isActive={editor.isActive({ textAlign: 'right' })}
+          disabled={disabled}
           title="Align Right"
         >
           <AlignRight className="h-4 w-4" />
@@ -194,6 +207,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={() => editor.chain().focus().setTextAlign('justify').run()}
           isActive={editor.isActive({ textAlign: 'justify' })}
+          disabled={disabled}
           title="Justify"
         >
           <AlignJustify className="h-4 w-4" />
@@ -205,6 +219,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         <ToolbarButton
           onClick={openLinkInput}
           isActive={editor.isActive('link')}
+          disabled={disabled}
           title="Add Link"
         >
           <Link className="h-4 w-4" />
@@ -212,6 +227,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
         {editor.isActive('link') && (
           <ToolbarButton
             onClick={() => editor.chain().focus().unsetLink().run()}
+            disabled={disabled}
             title="Remove Link"
           >
             <Unlink className="h-4 w-4" />

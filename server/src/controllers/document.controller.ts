@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import Document from '../models/Document';
+import User from '../models/User';
 import { AppError } from '../utils/AppError';
 
 /**
@@ -326,6 +327,211 @@ export const updateContent = async (req: Request, res: Response, next: NextFunct
       success: true,
       message: 'Document content updated successfully',
       data: { document },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/documents/:id/collaborators
+ * Add a collaborator by email with role ('editor' | 'viewer' | 'commenter'). Owner only.
+ */
+export const addCollaborator = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { email, role } = req.body;
+
+    if (!isValidObjectId(id)) {
+      return next(new AppError('Invalid document ID', 400));
+    }
+
+    const document = await Document.findById(id);
+
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    // Authorization: owner only can add collaborators
+    if (document.owner.toString() !== req.user._id.toString()) {
+      return next(new AppError('Only the document owner can share this document', 403));
+    }
+
+    // Find target user by email
+    const targetUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!targetUser) {
+      return next(new AppError('User with this email was not found', 404));
+    }
+
+    // Prevent adding self (owner)
+    if (targetUser._id.toString() === req.user._id.toString()) {
+      return next(new AppError('You are already the owner of this document', 400));
+    }
+
+    // Check if user is already a collaborator
+    const existingIndex = document.collaborators.findIndex(
+      (c) => c.user.toString() === targetUser._id.toString()
+    );
+
+    if (existingIndex !== -1) {
+      return next(new AppError('User is already a collaborator on this document', 400));
+    }
+
+    // Add collaborator
+    document.collaborators.push({
+      user: targetUser._id,
+      role: role || 'viewer',
+    });
+
+    await document.save();
+
+    await document.populate('owner', 'name email avatarColor');
+    await document.populate('collaborators.user', 'name email avatarColor');
+
+    res.status(200).json({
+      success: true,
+      message: 'Collaborator added successfully',
+      data: { document },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/documents/:id/collaborators
+ * List all collaborators for a document. Owner or any collaborator.
+ */
+export const getCollaborators = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+
+    if (!isValidObjectId(id)) {
+      return next(new AppError('Invalid document ID', 400));
+    }
+
+    const document = await Document.findById(id)
+      .populate('owner', 'name email avatarColor')
+      .populate('collaborators.user', 'name email avatarColor');
+
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    // Authorization: owner or any collaborator
+    const userId = req.user._id.toString();
+    const isOwner = document.owner._id.toString() === userId;
+    const isCollaborator = document.collaborators.some(
+      (c) => c.user._id.toString() === userId
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return next(new AppError('You do not have access to this document', 403));
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        owner: document.owner,
+        collaborators: document.collaborators,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/documents/:id/collaborators/:userId
+ * Update a collaborator's role ('editor' | 'viewer' | 'commenter'). Owner only.
+ */
+export const updateCollaboratorRole = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const targetUserId = req.params.userId as string;
+    const { role } = req.body;
+
+    if (!isValidObjectId(id) || !isValidObjectId(targetUserId)) {
+      return next(new AppError('Invalid ID parameters', 400));
+    }
+
+    const document = await Document.findById(id);
+
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    // Authorization: owner only
+    if (document.owner.toString() !== req.user._id.toString()) {
+      return next(new AppError('Only the document owner can change collaborator roles', 403));
+    }
+
+    const collaborator = document.collaborators.find(
+      (c) => c.user.toString() === targetUserId
+    );
+
+    if (!collaborator) {
+      return next(new AppError('Collaborator not found on this document', 404));
+    }
+
+    collaborator.role = role;
+    await document.save();
+
+    await document.populate('owner', 'name email avatarColor');
+    await document.populate('collaborators.user', 'name email avatarColor');
+
+    res.status(200).json({
+      success: true,
+      message: 'Collaborator role updated successfully',
+      data: { document },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * DELETE /api/documents/:id/collaborators/:userId
+ * Remove a collaborator from a document. Owner or the collaborator removing themselves.
+ */
+export const removeCollaborator = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const targetUserId = req.params.userId as string;
+
+    if (!isValidObjectId(id) || !isValidObjectId(targetUserId)) {
+      return next(new AppError('Invalid ID parameters', 400));
+    }
+
+    const document = await Document.findById(id);
+
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    const currentUserId = req.user._id.toString();
+    const isOwner = document.owner.toString() === currentUserId;
+    const isSelfRemoval = targetUserId === currentUserId;
+
+    // Authorization: owner can remove anyone; collaborator can remove themselves
+    if (!isOwner && !isSelfRemoval) {
+      return next(new AppError('You do not have permission to remove this collaborator', 403));
+    }
+
+    const existingIndex = document.collaborators.findIndex(
+      (c) => c.user.toString() === targetUserId
+    );
+
+    if (existingIndex === -1) {
+      return next(new AppError('Collaborator not found on this document', 404));
+    }
+
+    document.collaborators.splice(existingIndex, 1);
+    await document.save();
+
+    res.status(200).json({
+      success: true,
+      message: isSelfRemoval ? 'You left the document' : 'Collaborator removed successfully',
     });
   } catch (error) {
     next(error);

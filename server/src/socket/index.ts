@@ -116,17 +116,30 @@ async function broadcastPresence(room: string) {
 }
 
 /**
+ * Safe acknowledgment helper for socket callbacks.
+ */
+const safeAck = (callback: unknown, data: { success: boolean; error?: string }) => {
+  if (typeof callback === 'function') {
+    callback(data);
+  }
+};
+
+/**
  * Register document collaboration event handlers on a socket.
  */
 function registerDocumentHandlers(socket: AppSocket) {
   // Join a document room after verifying access
   socket.on('document:join', async ({ documentId }, callback) => {
     try {
+      if (!documentId || typeof documentId !== 'string') {
+        return safeAck(callback, { success: false, error: 'Invalid document ID' });
+      }
+
       const userId = socket.data.userId;
       const document = await Document.findById(documentId);
 
       if (!document) {
-        return callback({ success: false, error: 'Document not found' });
+        return safeAck(callback, { success: false, error: 'Document not found' });
       }
 
       const isOwner = document.owner.toString() === userId;
@@ -135,7 +148,7 @@ function registerDocumentHandlers(socket: AppSocket) {
       );
 
       if (!isOwner && !isCollaborator) {
-        return callback({ success: false, error: 'Access denied' });
+        return safeAck(callback, { success: false, error: 'Access denied' });
       }
 
       const room = `doc:${documentId}`;
@@ -145,15 +158,16 @@ function registerDocumentHandlers(socket: AppSocket) {
       // Broadcast presence update to everyone in the room
       await broadcastPresence(room);
 
-      callback({ success: true });
+      safeAck(callback, { success: true });
     } catch (error) {
       logger.error('Error joining document room', { error });
-      callback({ success: false, error: 'Failed to join document' });
+      safeAck(callback, { success: false, error: 'Failed to join document' });
     }
   });
 
   // Leave a document room
   socket.on('document:leave', async ({ documentId }) => {
+    if (!documentId || typeof documentId !== 'string') return;
     const room = `doc:${documentId}`;
     socket.leave(room);
     logger.info(`User ${socket.data.userId} left room ${room}`);
@@ -162,16 +176,36 @@ function registerDocumentHandlers(socket: AppSocket) {
     await broadcastPresence(room);
   });
 
-  // Broadcast content changes to other users in the same document room
-  socket.on('document:content', ({ documentId, content }) => {
-    const room = `doc:${documentId}`;
-    logger.info(`Broadcasting content update for room ${room} from user ${socket.data.userId}`);
+  // Broadcast content changes to other users in the same document room (Owner & Editors only)
+  socket.on('document:content', async ({ documentId, content }) => {
+    if (!documentId || typeof documentId !== 'string' || !content) return;
 
-    // Send to everyone in the room EXCEPT the sender
-    socket.to(room).emit('document:content', {
-      content,
-      userId: socket.data.userId,
-    });
+    try {
+      const userId = socket.data.userId;
+      const document = await Document.findById(documentId);
+      if (!document) return;
+
+      const isOwner = document.owner.toString() === userId;
+      const isEditor = document.collaborators.some(
+        (c) => c.user.toString() === userId && c.role === 'editor'
+      );
+
+      if (!isOwner && !isEditor) {
+        logger.warn(`User ${userId} attempted to broadcast content without editor permission on doc ${documentId}`);
+        return;
+      }
+
+      const room = `doc:${documentId}`;
+      logger.info(`Broadcasting content update for room ${room} from user ${userId}`);
+
+      // Send to everyone in the room EXCEPT the sender
+      socket.to(room).emit('document:content', {
+        content,
+        userId,
+      });
+    } catch (error) {
+      logger.error('Error broadcasting document content', { error });
+    }
   });
 }
 

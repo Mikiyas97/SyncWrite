@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document as MongoDoc, Types } from 'mongoose';
 
-export type CollaboratorRole = 'editor' | 'viewer';
+export type CollaboratorRole = 'editor' | 'viewer' | 'commenter';
 
 export interface ICollaborator {
   user: Types.ObjectId;
@@ -31,7 +31,7 @@ const CollaboratorSchema = new Schema<ICollaborator>(
     },
     role: {
       type: String,
-      enum: ['editor', 'viewer'],
+      enum: ['editor', 'viewer', 'commenter'],
       default: 'viewer',
     },
   },
