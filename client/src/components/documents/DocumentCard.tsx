@@ -1,10 +1,14 @@
-import { FileText, Clock, Users } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import type { Document } from '../../types/document';
 
 interface DocumentCardProps {
   document: Document;
   currentUserId: string;
+  onRename: (id: string, currentTitle: string) => void;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 /**
@@ -30,7 +34,16 @@ function formatDate(dateString: string): string {
   });
 }
 
-export const DocumentCard = ({ document, currentUserId }: DocumentCardProps) => {
+export const DocumentCard = ({
+  document,
+  currentUserId,
+  onRename,
+  onDuplicate,
+  onDelete,
+}: DocumentCardProps) => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   const isOwner = document.owner._id === currentUserId;
   const collaboratorCount = document.collaborators.length;
 
@@ -38,20 +51,85 @@ export const DocumentCard = ({ document, currentUserId }: DocumentCardProps) => 
   const visibleCollaborators = document.collaborators.slice(0, 3);
   const extraCount = collaboratorCount - 3;
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    if (isMenuOpen) {
+      window.document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => window.document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMenuOpen]);
+
+  const handleAction = (e: React.MouseEvent, action: () => void) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsMenuOpen(false);
+    action();
+  };
+
   return (
-    <button
-      className="group w-full text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-    >
+    <div className="group relative w-full text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer">
+      {/* Context Menu Button */}
+      <div className="absolute top-4 right-4 z-10" ref={menuRef}>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsMenuOpen(!isMenuOpen);
+          }}
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+          data-state={isMenuOpen ? 'open' : 'closed'}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+
+        {isMenuOpen && (
+          <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 animate-in fade-in slide-in-from-top-2">
+            {isOwner && (
+              <button
+                onClick={(e) => handleAction(e, () => onRename(document._id, document.title))}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Edit2 className="h-4 w-4 text-gray-400" />
+                Rename
+              </button>
+            )}
+            
+            <button
+              onClick={(e) => handleAction(e, () => onDuplicate(document._id))}
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Copy className="h-4 w-4 text-gray-400" />
+              Duplicate
+            </button>
+            
+            {isOwner && (
+              <button
+                onClick={(e) => handleAction(e, () => onDelete(document._id))}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Icon + Title */}
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-start gap-3 mb-3 pr-8">
         <div className="bg-blue-50 p-2 rounded-lg group-hover:bg-blue-100 transition-colors shrink-0">
           <FileText className="h-5 w-5 text-blue-600" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
+          <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors" title={document.title}>
             {document.title}
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-500 mt-0.5 truncate">
             {isOwner ? 'Owned by you' : `Shared by ${document.owner.name}`}
           </p>
         </div>
@@ -65,13 +143,13 @@ export const DocumentCard = ({ document, currentUserId }: DocumentCardProps) => 
         </div>
 
         {collaboratorCount > 0 && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" title={`${collaboratorCount} collaborator${collaboratorCount !== 1 ? 's' : ''}`}>
             <div className="flex -space-x-1.5">
               {visibleCollaborators.map((collab) => (
                 <Avatar
-                  key={collab._id}
-                  name={collab.name}
-                  color={collab.avatarColor}
+                  key={collab.user._id}
+                  name={collab.user.name}
+                  color={collab.user.avatarColor}
                   size="sm"
                   className="h-6 w-6 text-[10px] ring-2 ring-white"
                 />
@@ -84,6 +162,6 @@ export const DocumentCard = ({ document, currentUserId }: DocumentCardProps) => 
           </div>
         )}
       </div>
-    </button>
+    </div>
   );
 };

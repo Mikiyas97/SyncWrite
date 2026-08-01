@@ -1,0 +1,88 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import * as documentService from '../services/documentService';
+import type { Document, DocumentListResponse } from '../types/document';
+
+interface UseDocumentsReturn {
+  documents: DocumentListResponse | null;
+  isLoading: boolean;
+  error: string | null;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  createDocument: (title?: string) => Promise<void>;
+  renameDocument: (id: string, title: string) => Promise<void>;
+  duplicateDocument: (id: string) => Promise<void>;
+  deleteDocument: (id: string) => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+export const useDocuments = (): UseDocumentsReturn => {
+  const [documents, setDocuments] = useState<DocumentListResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const fetchDocuments = useCallback(async (search?: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await documentService.listDocuments(search);
+      setDocuments(data);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load documents');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Debounced search
+  useEffect(() => {
+    // Skip debounce on first render (initial load already fires)
+    if (debounceRef.current !== undefined) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      fetchDocuments(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(debounceRef.current);
+  }, [searchQuery, fetchDocuments]);
+
+  const createDoc = useCallback(async (title?: string) => {
+    await documentService.createDocument(title);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
+  const renameDoc = useCallback(async (id: string, title: string) => {
+    await documentService.renameDocument(id, title);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
+  const duplicateDoc = useCallback(async (id: string) => {
+    await documentService.duplicateDocument(id);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
+  const deleteDoc = useCallback(async (id: string) => {
+    await documentService.deleteDocument(id);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
+  return {
+    documents,
+    isLoading,
+    error,
+    searchQuery,
+    setSearchQuery,
+    createDocument: createDoc,
+    renameDocument: renameDoc,
+    duplicateDocument: duplicateDoc,
+    deleteDocument: deleteDoc,
+    refresh: () => fetchDocuments(searchQuery),
+  };
+};

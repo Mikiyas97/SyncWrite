@@ -8,6 +8,9 @@ interface DocumentSectionProps {
   documents: Document[];
   currentUserId: string;
   emptyMessage?: string;
+  onRename: (id: string, currentTitle: string) => void;
+  onDuplicate: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
 export const DocumentSection = ({
@@ -16,6 +19,9 @@ export const DocumentSection = ({
   documents,
   currentUserId,
   emptyMessage = 'No documents found.',
+  onRename,
+  onDuplicate,
+  onDelete,
 }: DocumentSectionProps) => {
   return (
     <section className="mb-10">
@@ -36,6 +42,9 @@ export const DocumentSection = ({
               key={doc._id}
               document={doc}
               currentUserId={currentUserId}
+              onRename={onRename}
+              onDuplicate={onDuplicate}
+              onDelete={onDelete}
             />
           ))}
         </div>
