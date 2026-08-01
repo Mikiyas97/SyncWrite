@@ -6,8 +6,10 @@ import UnderlineExtension from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import LinkExtension from '@tiptap/extension-link';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
+import { PresenceAvatars } from '../components/editor/PresenceAvatars';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
+import { useAuth } from '../hooks/useAuth';
 import type { Document } from '../types/document';
 import {
   ArrowLeft,
@@ -28,6 +30,7 @@ const SAVED_DISPLAY_MS = 3000;
 export const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [document, setDocument] = useState<Document | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,19 +49,23 @@ export const EditorPage = () => {
 
   // ---- Socket.IO ----
 
-  const { isConnected } = useSocket();
+  useSocket();
 
-  const handleRemoteContent = useCallback((content: Record<string, any>, _userId: string) => {
+  const handleRemoteContent = useCallback((content: Record<string, any>, userId: string) => {
     const ed = editorRef.current;
     if (!ed) return;
-    // Set flag so onUpdate knows this is a remote change (don't re-broadcast or save)
-    isRemoteUpdateRef.current = true;
-    ed.commands.setContent(content, false);
-    isRemoteUpdateRef.current = false;
+    console.log(`[Socket] Received remote content update from user ${userId}`);
+    try {
+      // Set flag so onUpdate knows this is a remote change (don't re-broadcast or save)
+      isRemoteUpdateRef.current = true;
+      ed.commands.setContent(content);
+    } finally {
+      isRemoteUpdateRef.current = false;
+    }
   }, []);
 
-  const { isJoined, emitContentChange } = useDocumentSocket(
-    isConnected ? id : undefined,
+  const { activeUsers, emitContentChange } = useDocumentSocket(
+    id,
     handleRemoteContent,
   );
 
@@ -361,8 +368,10 @@ export const EditorPage = () => {
             )}
           </div>
 
-          {/* Right: Save Status */}
-          <div className="flex items-center gap-2 shrink-0 ml-4">
+          {/* Right: Presence Avatars + Save Status */}
+          <div className="flex items-center gap-4 shrink-0 ml-4">
+            <PresenceAvatars users={activeUsers} currentUserId={user?._id} />
+            <div className="h-4 w-px bg-gray-200" />
             <SaveIndicator status={saveStatus} onRetry={retrySave} />
           </div>
         </div>

@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { socket } from '../api/socket';
+import type { UserPresence } from '../api/socket';
 
 /**
  * Manages the Socket.IO connection lifecycle.
- * Call this once at the top level (e.g., Dashboard or App) to keep the socket connected
- * while the user is authenticated.
+ * Keeps the socket connected across page transitions while authenticated.
  */
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -36,6 +36,8 @@ export const useSocket = () => {
     // Connect if not already connected
     if (!socket.connected) {
       socket.connect();
+    } else {
+      setIsConnected(true);
     }
 
     return () => {
@@ -43,7 +45,8 @@ export const useSocket = () => {
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onConnectError);
       socket.off('error', onSocketError);
-      socket.disconnect();
+      // Note: Do NOT disconnect socket on component unmount so socket connection
+      // persists across page/route transitions.
     };
   }, []);
 
@@ -51,8 +54,8 @@ export const useSocket = () => {
 };
 
 /**
- * Joins a document room and handles incoming content changes.
- * Returns a function to emit local content changes to other users.
+ * Joins a document room, handles incoming content changes, and tracks online presence.
+ * Automatically re-joins room if socket reconnects.
  */
 export const useDocumentSocket = (
   documentId: string | undefined,
@@ -60,50 +63,74 @@ export const useDocumentSocket = (
 ) => {
   const [isJoined, setIsJoined] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [activeUsers, setActiveUsers] = useState<UserPresence[]>([]);
   const onRemoteContentRef = useRef(onRemoteContent);
 
-  // Keep the callback ref fresh without re-running the effect
   useEffect(() => {
     onRemoteContentRef.current = onRemoteContent;
   }, [onRemoteContent]);
 
   useEffect(() => {
-    if (!documentId || !socket.connected) return;
+    if (!documentId) return;
 
     let isCancelled = false;
 
-    // Listen for remote content changes
+    const joinRoom = () => {
+      if (!socket.connected) return;
+      socket.emit('document:join', { documentId }, (response) => {
+        if (isCancelled) return;
+        if (response.success) {
+          setIsJoined(true);
+          setJoinError(null);
+        } else {
+          setIsJoined(false);
+          setJoinError(response.error || 'Failed to join document room');
+        }
+      });
+    };
+
+    // Handle remote content changes
     const handleRemoteContent = (data: { content: Record<string, any>; userId: string }) => {
       onRemoteContentRef.current(data.content, data.userId);
     };
 
-    socket.on('document:content', handleRemoteContent);
-
-    // Join the document room
-    socket.emit('document:join', { documentId }, (response) => {
-      if (isCancelled) return;
-      if (response.success) {
-        setIsJoined(true);
-        setJoinError(null);
-      } else {
-        setIsJoined(false);
-        setJoinError(response.error || 'Failed to join document room');
+    // Handle presence updates
+    const handlePresenceUpdate = (users: UserPresence[]) => {
+      if (!isCancelled) {
+        setActiveUsers(users);
       }
-    });
+    };
+
+    socket.on('document:content', handleRemoteContent);
+    socket.on('presence:update', handlePresenceUpdate);
+    socket.on('connect', joinRoom);
+
+    // If already connected, join room immediately
+    if (socket.connected) {
+      joinRoom();
+    }
 
     return () => {
       isCancelled = true;
       socket.off('document:content', handleRemoteContent);
-      socket.emit('document:leave', { documentId });
+      socket.off('presence:update', handlePresenceUpdate);
+      socket.off('connect', joinRoom);
+
+      if (socket.connected) {
+        socket.emit('document:leave', { documentId });
+      }
       setIsJoined(false);
+      setActiveUsers([]);
     };
-  }, [documentId, socket.connected]);
+  }, [documentId]);
 
-  // Function to broadcast local changes
-  const emitContentChange = (content: Record<string, any>) => {
-    if (!documentId || !isJoined) return;
-    socket.emit('document:content', { documentId, content });
-  };
+  const emitContentChange = useCallback(
+    (content: Record<string, any>) => {
+      if (!documentId || !socket.connected) return;
+      socket.emit('document:content', { documentId, content });
+    },
+    [documentId],
+  );
 
-  return { isJoined, joinError, emitContentChange };
+  return { isJoined, joinError, activeUsers, emitContentChange };
 };
