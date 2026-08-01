@@ -8,9 +8,21 @@ import LinkExtension from '@tiptap/extension-link';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
 import type { Document } from '../types/document';
-import { ArrowLeft, Cloud, CloudOff, Loader2, AlertCircle, Check } from 'lucide-react';
+import {
+  ArrowLeft,
+  Cloud,
+  CloudOff,
+  Loader2,
+  AlertCircle,
+  Check,
+  CircleDot,
+  RefreshCw,
+} from 'lucide-react';
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
+
+const DEBOUNCE_MS = 2000;
+const SAVED_DISPLAY_MS = 3000;
 
 export const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +36,57 @@ export const EditorPage = () => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedDisplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentInitializedRef = useRef(false);
+  const pendingContentRef = useRef<Record<string, any> | null>(null);
+  const isSavingRef = useRef(false);
+
+  // ---- Save logic ----
+
+  const saveContent = useCallback(
+    async (content: Record<string, any>) => {
+      if (!id || isSavingRef.current) return;
+      try {
+        isSavingRef.current = true;
+        setSaveStatus('saving');
+        await updateDocumentContent(id, content);
+        pendingContentRef.current = null;
+        setSaveStatus('saved');
+
+        // Clear any existing "Saved" display timer
+        if (savedDisplayTimerRef.current) {
+          clearTimeout(savedDisplayTimerRef.current);
+        }
+        savedDisplayTimerRef.current = setTimeout(
+          () => setSaveStatus('idle'),
+          SAVED_DISPLAY_MS,
+        );
+      } catch {
+        setSaveStatus('error');
+      } finally {
+        isSavingRef.current = false;
+      }
+    },
+    [id],
+  );
+
+  const flushSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (pendingContentRef.current) {
+      saveContent(pendingContentRef.current);
+    }
+  }, [saveContent]);
+
+  const retrySave = useCallback(() => {
+    if (pendingContentRef.current) {
+      saveContent(pendingContentRef.current);
+    }
+  }, [saveContent]);
+
+  // ---- Editor ----
 
   const editor = useEditor({
     extensions: [
@@ -51,18 +113,27 @@ export const EditorPage = () => {
     onUpdate: ({ editor: updatedEditor }) => {
       if (!contentInitializedRef.current) return;
 
-      // Debounced auto-save
+      const json = updatedEditor.getJSON();
+      pendingContentRef.current = json;
+
+      // Immediately show "unsaved" status
+      setSaveStatus('unsaved');
+
+      // Clear previous debounce timer
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
-      setSaveStatus('saving');
+
+      // Schedule save after debounce period
       saveTimerRef.current = setTimeout(() => {
-        saveContent(updatedEditor.getJSON());
-      }, 1500);
+        saveTimerRef.current = null;
+        saveContent(json);
+      }, DEBOUNCE_MS);
     },
   });
 
-  // Fetch document on mount
+  // ---- Fetch document ----
+
   useEffect(() => {
     if (!id) return;
 
@@ -85,7 +156,8 @@ export const EditorPage = () => {
     fetchDocument();
   }, [id]);
 
-  // Set editor content once document is loaded and editor is ready
+  // ---- Initialize editor content ----
+
   useEffect(() => {
     if (editor && document && !contentInitializedRef.current) {
       const content = document.content;
@@ -96,30 +168,38 @@ export const EditorPage = () => {
     }
   }, [editor, document]);
 
-  // Cleanup save timer on unmount
+  // ---- Browser beforeunload guard ----
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingContentRef.current) {
+        e.preventDefault();
+        // Attempt to flush save
+        flushSave();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [flushSave]);
+
+  // ---- Cleanup timers on unmount ----
+
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-      }
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (savedDisplayTimerRef.current) clearTimeout(savedDisplayTimerRef.current);
     };
   }, []);
 
-  const saveContent = useCallback(
-    async (content: Record<string, any>) => {
-      if (!id) return;
-      try {
-        setSaveStatus('saving');
-        await updateDocumentContent(id, content);
-        setSaveStatus('saved');
-        // Reset to idle after 2s
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      } catch {
-        setSaveStatus('error');
-      }
-    },
-    [id]
-  );
+  // ---- Navigate back (flush first) ----
+
+  const handleBack = useCallback(() => {
+    flushSave();
+    navigate('/dashboard');
+  }, [flushSave, navigate]);
+
+  // ---- Title editing ----
 
   const handleTitleBlur = async () => {
     setIsEditingTitle(false);
@@ -148,7 +228,7 @@ export const EditorPage = () => {
     }
   };
 
-  // --- Render states ---
+  // ---- Render states ----
 
   if (isLoading) {
     return (
@@ -183,14 +263,14 @@ export const EditorPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top Bar */}
       <header className="border-b border-gray-200 bg-white sticky top-0 z-20">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Left: Back + Title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={handleBack}
               className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
               title="Back to Dashboard"
             >
@@ -221,7 +301,7 @@ export const EditorPage = () => {
 
           {/* Right: Save Status */}
           <div className="flex items-center gap-2 shrink-0 ml-4">
-            <SaveIndicator status={saveStatus} />
+            <SaveIndicator status={saveStatus} onRetry={retrySave} />
           </div>
         </div>
       </header>
@@ -239,12 +319,25 @@ export const EditorPage = () => {
   );
 };
 
-/** Small component showing save status with icon + text. */
-const SaveIndicator = ({ status }: { status: SaveStatus }) => {
+/** Save status indicator with distinct states. */
+const SaveIndicator = ({
+  status,
+  onRetry,
+}: {
+  status: SaveStatus;
+  onRetry: () => void;
+}) => {
   switch (status) {
+    case 'unsaved':
+      return (
+        <span className="flex items-center gap-1.5 text-xs text-amber-600">
+          <CircleDot className="h-3.5 w-3.5" />
+          Unsaved changes
+        </span>
+      );
     case 'saving':
       return (
-        <span className="flex items-center gap-1.5 text-xs text-gray-400">
+        <span className="flex items-center gap-1.5 text-xs text-blue-500">
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
           Saving...
         </span>
@@ -258,9 +351,17 @@ const SaveIndicator = ({ status }: { status: SaveStatus }) => {
       );
     case 'error':
       return (
-        <span className="flex items-center gap-1.5 text-xs text-red-500">
+        <span className="flex items-center gap-2 text-xs text-red-500">
           <CloudOff className="h-3.5 w-3.5" />
           Save failed
+          <button
+            onClick={onRetry}
+            className="flex items-center gap-1 ml-1 px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
+            title="Retry save"
+          >
+            <RefreshCw className="h-3 w-3" />
+            Retry
+          </button>
         </span>
       );
     default:
