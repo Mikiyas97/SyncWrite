@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
+import documentRoutes from './routes/document.routes';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -20,6 +21,7 @@ app.get('/api/health', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Global Error Handler
 app.use(errorHandler);
