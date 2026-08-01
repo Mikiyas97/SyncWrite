@@ -29,3 +29,12 @@ export const documentIdParamSchema = z.object({
     id: z.string().min(1, 'Document ID is required'),
   }),
 });
+
+export const updateContentSchema = z.object({
+  params: z.object({
+    id: z.string().min(1, 'Document ID is required'),
+  }),
+  body: z.object({
+    content: z.record(z.string(), z.any()),
+  }),
+});

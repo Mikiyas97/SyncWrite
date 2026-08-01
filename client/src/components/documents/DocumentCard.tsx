@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import type { Document } from '../../types/document';
@@ -72,7 +73,10 @@ export const DocumentCard = ({
   };
 
   return (
-    <div className="group relative w-full text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer">
+    <Link
+      to={`/documents/${document._id}`}
+      className="block group relative w-full text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer no-underline"
+    >
       {/* Context Menu Button */}
       <div className="absolute top-4 right-4 z-10" ref={menuRef}>
         <button
@@ -162,6 +166,6 @@ export const DocumentCard = ({
           </div>
         )}
       </div>
-    </div>
+    </Link>
   );
 };

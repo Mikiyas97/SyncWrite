@@ -4,6 +4,7 @@ import { ProtectedRoute } from './routes/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
+import { EditorPage } from './pages/EditorPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/documents/:id" element={<EditorPage />} />
             {/* Redirect root to dashboard if authenticated */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>

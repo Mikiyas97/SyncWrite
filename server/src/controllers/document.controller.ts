@@ -285,3 +285,49 @@ export const deleteDocument = async (req: Request, res: Response, next: NextFunc
     next(error);
   }
 };
+
+/**
+ * PATCH /api/documents/:id/content
+ * Update document content. Owner or collaborators with 'editor' role.
+ */
+export const updateContent = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { content } = req.body;
+
+    if (!isValidObjectId(id)) {
+      return next(new AppError('Invalid document ID', 400));
+    }
+
+    const document = await Document.findById(id);
+
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    // Authorization: owner or editor collaborator
+    const userId = req.user._id.toString();
+    const isOwner = document.owner.toString() === userId;
+    const isEditor = document.collaborators.some(
+      (c) => c.user.toString() === userId && c.role === 'editor'
+    );
+
+    if (!isOwner && !isEditor) {
+      return next(new AppError('You do not have permission to edit this document', 403));
+    }
+
+    document.content = content;
+    await document.save();
+
+    await document.populate('owner', 'name email avatarColor');
+    await document.populate('collaborators.user', 'name email avatarColor');
+
+    res.status(200).json({
+      success: true,
+      message: 'Document content updated successfully',
+      data: { document },
+    });
+  } catch (error) {
+    next(error);
+  }
+};

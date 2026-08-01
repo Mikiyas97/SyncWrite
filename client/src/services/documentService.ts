@@ -48,3 +48,14 @@ export const duplicateDocument = async (id: string): Promise<Document> => {
 export const deleteDocument = async (id: string): Promise<void> => {
   await api.delete(`/documents/${id}`);
 };
+
+/**
+ * Update document content (Tiptap JSON).
+ */
+export const updateDocumentContent = async (
+  id: string,
+  content: Record<string, any>
+): Promise<Document> => {
+  const res = await api.patch(`/documents/${id}/content`, { content });
+  return res.data.data.document;
+};
