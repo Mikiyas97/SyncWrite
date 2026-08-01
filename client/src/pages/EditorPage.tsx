@@ -49,8 +49,10 @@ export const EditorPage = () => {
       try {
         isSavingRef.current = true;
         setSaveStatus('saving');
-        await updateDocumentContent(id, content);
+        
+        // Clear pending ref before saving. If user types during save, it will be populated again.
         pendingContentRef.current = null;
+        await updateDocumentContent(id, content);
         setSaveStatus('saved');
 
         // Clear any existing "Saved" display timer
@@ -62,21 +64,36 @@ export const EditorPage = () => {
           SAVED_DISPLAY_MS,
         );
       } catch {
+        // Restore pending content on failure so it can be retried
+        if (!pendingContentRef.current) {
+          pendingContentRef.current = content;
+        }
         setSaveStatus('error');
       } finally {
         isSavingRef.current = false;
+        
+        // If user typed while we were saving, schedule another save
+        if (pendingContentRef.current && saveTimerRef.current === null) {
+          setSaveStatus('unsaved');
+          saveTimerRef.current = setTimeout(() => {
+            saveTimerRef.current = null;
+            if (pendingContentRef.current) {
+              saveContent(pendingContentRef.current);
+            }
+          }, DEBOUNCE_MS);
+        }
       }
     },
     [id],
   );
 
-  const flushSave = useCallback(() => {
+  const flushSave = useCallback(async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
     if (pendingContentRef.current) {
-      saveContent(pendingContentRef.current);
+      await saveContent(pendingContentRef.current);
     }
   }, [saveContent]);
 
@@ -113,8 +130,7 @@ export const EditorPage = () => {
     onUpdate: ({ editor: updatedEditor }) => {
       if (!contentInitializedRef.current) return;
 
-      const json = updatedEditor.getJSON();
-      pendingContentRef.current = json;
+      pendingContentRef.current = updatedEditor.getJSON();
 
       // Immediately show "unsaved" status
       setSaveStatus('unsaved');
@@ -127,7 +143,9 @@ export const EditorPage = () => {
       // Schedule save after debounce period
       saveTimerRef.current = setTimeout(() => {
         saveTimerRef.current = null;
-        saveContent(json);
+        if (pendingContentRef.current) {
+          saveContent(pendingContentRef.current);
+        }
       }, DEBOUNCE_MS);
     },
   });
@@ -168,20 +186,26 @@ export const EditorPage = () => {
     }
   }, [editor, document]);
 
-  // ---- Browser beforeunload guard ----
-
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (pendingContentRef.current) {
+      if (pendingContentRef.current && id) {
         e.preventDefault();
-        // Attempt to flush save
-        flushSave();
+        
+        // Use fetch with keepalive to reliably send the save request as the page unloads
+        const baseUrl = import.meta.env.VITE_API_URL || '/api';
+        fetch(`${baseUrl}/documents/${id}/content`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: pendingContentRef.current }),
+          keepalive: true,
+          credentials: 'include'
+        }).catch(err => console.error('Failed to flush save on unload:', err));
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [flushSave]);
+  }, [id]);
 
   // ---- Cleanup timers on unmount ----
 
@@ -194,8 +218,8 @@ export const EditorPage = () => {
 
   // ---- Navigate back (flush first) ----
 
-  const handleBack = useCallback(() => {
-    flushSave();
+  const handleBack = useCallback(async () => {
+    await flushSave();
     navigate('/dashboard');
   }, [flushSave, navigate]);
 

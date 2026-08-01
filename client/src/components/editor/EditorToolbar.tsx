@@ -92,7 +92,7 @@ export const EditorToolbar = ({ editor }: EditorToolbarProps) => {
   if (!editor) return null;
 
   return (
-    <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
+    <div className="border-b border-gray-200 bg-white">
       <div className="flex items-center gap-0.5 flex-wrap px-4 py-2">
         {/* Text Style */}
         <ToolbarButton
