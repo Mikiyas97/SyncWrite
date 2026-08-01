@@ -4,10 +4,12 @@ import { useDocuments } from '../hooks/useDocuments';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
 import { DocumentSection } from '../components/documents/DocumentSection';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { useSocket } from '../hooks/useSocket';
 import { Plus, FolderOpen, Users, Clock, Loader2, AlertCircle } from 'lucide-react';
 
 export const Dashboard = () => {
   const { user } = useAuth();
+  const { isConnected, error: socketError } = useSocket();
   const {
     documents,
     isLoading,
@@ -83,11 +85,19 @@ export const Dashboard = () => {
       {/* Header: greeting + create button */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {isSearching
-              ? `Search results for "${searchQuery}"`
-              : `Welcome back, ${user?.name || 'there'}`}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-gray-900">
+              {isSearching
+                ? `Search results for "${searchQuery}"`
+                : `Welcome back, ${user?.name || 'there'}`}
+            </h1>
+            {!isSearching && (
+              <div
+                className={`w-3 h-3 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+                title={isConnected ? 'Connected to real-time server' : socketError || 'Disconnected'}
+              />
+            )}
+          </div>
           {!isSearching && (
             <p className="text-sm text-gray-500 mt-1">
               Manage your documents and collaborations

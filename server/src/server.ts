@@ -3,30 +3,17 @@ dotenv.config();
 
 import http from 'http';
 import mongoose from 'mongoose';
-import { Server } from 'socket.io';
 import app from './app';
 import { logger } from './utils/logger';
+import { initSocket } from './socket';
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/syncwrite';
 
 const server = http.createServer(app);
 
-const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true,
-  }
-});
-
-// Setup basic socket connection
-io.on('connection', (socket) => {
-  logger.info(`Socket connected: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    logger.info(`Socket disconnected: ${socket.id}`);
-  });
-});
+// Initialize Socket.IO
+initSocket(server);
 
 mongoose
   .connect(MONGODB_URI)

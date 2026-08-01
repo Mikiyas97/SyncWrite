@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as documentService from '../services/documentService';
-import type { Document, DocumentListResponse } from '../types/document';
+import type { DocumentListResponse } from '../types/document';
 
 interface UseDocumentsReturn {
   documents: DocumentListResponse | null;
@@ -20,7 +20,8 @@ export const useDocuments = (): UseDocumentsReturn => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const isFirstRender = useRef(true);
 
   const fetchDocuments = useCallback(async (search?: string) => {
     try {
@@ -42,10 +43,16 @@ export const useDocuments = (): UseDocumentsReturn => {
 
   // Debounced search
   useEffect(() => {
-    // Skip debounce on first render (initial load already fires)
+    // Skip the debounce effect on the very first render since the initial load handles it
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     if (debounceRef.current !== undefined) {
       clearTimeout(debounceRef.current);
     }
+    
     debounceRef.current = setTimeout(() => {
       fetchDocuments(searchQuery);
     }, 300);

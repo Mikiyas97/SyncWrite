@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { DocumentCard } from './DocumentCard';
 import type { Document } from '../../types/document';
 
