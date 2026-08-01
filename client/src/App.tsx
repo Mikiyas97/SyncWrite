@@ -1,10 +1,9 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './features/auth/AuthContext';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
-import { DashboardPlaceholder } from './pages/DashboardPlaceholder';
+import { Dashboard } from './pages/Dashboard';
 
 function App() {
   return (
@@ -15,7 +14,7 @@ function App() {
           <Route path="/register" element={<Register />} />
           
           <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<DashboardPlaceholder />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             {/* Redirect root to dashboard if authenticated */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
           </Route>
