@@ -1,8 +1,11 @@
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
+import Document from '../models/Document';
 import { logger } from '../utils/logger';
-import { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from './types';
+import type { ServerToClientEvents, ClientToServerEvents, InterServerEvents, SocketData } from './types';
+
+type AppSocket = Socket<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
 let io: Server<ClientToServerEvents, ServerToClientEvents, InterServerEvents, SocketData>;
 
@@ -36,7 +39,6 @@ export const initSocket = (server: HttpServer) => {
       const secret = process.env.JWT_SECRET || 'fallback_secret';
       const decoded = jwt.verify(token, secret) as { userId: string };
 
-      // Attach user info to socket data
       socket.data.userId = decoded.userId;
       next();
     } catch (error) {
@@ -48,6 +50,8 @@ export const initSocket = (server: HttpServer) => {
   io.on('connection', (socket) => {
     logger.info(`Socket connected: ${socket.id} (User: ${socket.data.userId})`);
 
+    registerDocumentHandlers(socket);
+
     socket.on('disconnect', (reason) => {
       logger.info(`Socket disconnected: ${socket.id} - Reason: ${reason}`);
     });
@@ -55,6 +59,65 @@ export const initSocket = (server: HttpServer) => {
 
   return io;
 };
+
+/**
+ * Register document collaboration event handlers on a socket.
+ */
+function registerDocumentHandlers(socket: AppSocket) {
+  // Join a document room after verifying access
+  socket.on('document:join', async ({ documentId }, callback) => {
+    try {
+      const userId = socket.data.userId;
+      const document = await Document.findById(documentId);
+
+      if (!document) {
+        return callback({ success: false, error: 'Document not found' });
+      }
+
+      const isOwner = document.owner.toString() === userId;
+      const isCollaborator = document.collaborators.some(
+        (c) => c.user.toString() === userId
+      );
+
+      if (!isOwner && !isCollaborator) {
+        return callback({ success: false, error: 'Access denied' });
+      }
+
+      const room = `doc:${documentId}`;
+      socket.join(room);
+      logger.info(`User ${userId} joined room ${room}`);
+
+      // Notify others in the room
+      socket.to(room).emit('document:joined', { userId });
+
+      callback({ success: true });
+    } catch (error) {
+      logger.error('Error joining document room', { error });
+      callback({ success: false, error: 'Failed to join document' });
+    }
+  });
+
+  // Leave a document room
+  socket.on('document:leave', ({ documentId }) => {
+    const room = `doc:${documentId}`;
+    socket.leave(room);
+    logger.info(`User ${socket.data.userId} left room ${room}`);
+
+    // Notify others in the room
+    socket.to(room).emit('document:left', { userId: socket.data.userId });
+  });
+
+  // Broadcast content changes to other users in the same document room
+  socket.on('document:content', ({ documentId, content }) => {
+    const room = `doc:${documentId}`;
+
+    // Send to everyone in the room EXCEPT the sender
+    socket.to(room).emit('document:content', {
+      content,
+      userId: socket.data.userId,
+    });
+  });
+}
 
 export const getIO = () => {
   if (!io) {

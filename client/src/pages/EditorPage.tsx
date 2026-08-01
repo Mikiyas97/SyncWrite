@@ -7,6 +7,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import LinkExtension from '@tiptap/extension-link';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
+import { useSocket, useDocumentSocket } from '../hooks/useSocket';
 import type { Document } from '../types/document';
 import {
   ArrowLeft,
@@ -40,6 +41,31 @@ export const EditorPage = () => {
   const contentInitializedRef = useRef(false);
   const pendingContentRef = useRef<Record<string, any> | null>(null);
   const isSavingRef = useRef(false);
+  const isRemoteUpdateRef = useRef(false);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+
+  // ---- Socket.IO ----
+
+  const { isConnected } = useSocket();
+
+  const handleRemoteContent = useCallback((content: Record<string, any>, _userId: string) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    // Set flag so onUpdate knows this is a remote change (don't re-broadcast or save)
+    isRemoteUpdateRef.current = true;
+    ed.commands.setContent(content, false);
+    isRemoteUpdateRef.current = false;
+  }, []);
+
+  const { isJoined, emitContentChange } = useDocumentSocket(
+    isConnected ? id : undefined,
+    handleRemoteContent,
+  );
+
+  const emitContentChangeRef = useRef(emitContentChange);
+  useEffect(() => {
+    emitContentChangeRef.current = emitContentChange;
+  }, [emitContentChange]);
 
   // ---- Save logic ----
 
@@ -130,7 +156,14 @@ export const EditorPage = () => {
     onUpdate: ({ editor: updatedEditor }) => {
       if (!contentInitializedRef.current) return;
 
-      pendingContentRef.current = updatedEditor.getJSON();
+      // If this update came from a remote user, don't save or re-broadcast
+      if (isRemoteUpdateRef.current) return;
+
+      const json = updatedEditor.getJSON();
+      pendingContentRef.current = json;
+
+      // Broadcast to other users in the room
+      emitContentChangeRef.current(json);
 
       // Immediately show "unsaved" status
       setSaveStatus('unsaved');
@@ -185,6 +218,11 @@ export const EditorPage = () => {
       contentInitializedRef.current = true;
     }
   }, [editor, document]);
+
+  // Keep editorRef in sync so the socket callback can access it
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {

@@ -1,10 +1,14 @@
 export interface ServerToClientEvents {
   error: (error: { message: string }) => void;
-  // Future events (e.g., document updates) will go here
+  'document:content': (data: { content: Record<string, any>; userId: string }) => void;
+  'document:joined': (data: { userId: string }) => void;
+  'document:left': (data: { userId: string }) => void;
 }
 
 export interface ClientToServerEvents {
-  // Future events (e.g., join document, leave document) will go here
+  'document:join': (data: { documentId: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'document:leave': (data: { documentId: string }) => void;
+  'document:content': (data: { documentId: string; content: Record<string, any> }) => void;
 }
 
 export interface InterServerEvents {

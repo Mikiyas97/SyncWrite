@@ -2,14 +2,18 @@ import { io, Socket } from 'socket.io-client';
 
 export interface ServerToClientEvents {
   error: (error: { message: string }) => void;
+  'document:content': (data: { content: Record<string, any>; userId: string }) => void;
+  'document:joined': (data: { userId: string }) => void;
+  'document:left': (data: { userId: string }) => void;
 }
 
 export interface ClientToServerEvents {
+  'document:join': (data: { documentId: string }, callback: (response: { success: boolean; error?: string }) => void) => void;
+  'document:leave': (data: { documentId: string }) => void;
+  'document:content': (data: { documentId: string; content: Record<string, any> }) => void;
 }
 
-// The API URL might be '/api', but we need to connect to the root namespace '/'
-// If VITE_API_URL is an absolute URL (e.g., http://localhost:5000/api), we extract the origin.
-// Otherwise, we just use '/' to rely on Vite's proxy for /socket.io
+// Connect to the root namespace. Vite proxies /socket.io to the backend.
 const getSocketUrl = () => {
   const apiUrl = import.meta.env.VITE_API_URL || '/';
   if (apiUrl.startsWith('http')) {
@@ -19,6 +23,6 @@ const getSocketUrl = () => {
 };
 
 export const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(getSocketUrl(), {
-  autoConnect: false, // Connect manually when authenticated
-  withCredentials: true, // Send cookies with socket requests
+  autoConnect: false,
+  withCredentials: true,
 });
