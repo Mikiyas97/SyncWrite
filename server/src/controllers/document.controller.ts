@@ -2,7 +2,12 @@ import { Request, Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import Document from '../models/Document';
 import User from '../models/User';
+import Version from '../models/Version';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
+import { getIO } from '../socket';
+
+const AUTO_CHECKPOINT_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Helper: Validates a MongoDB ObjectId string.
@@ -319,6 +324,46 @@ export const updateContent = async (req: Request, res: Response, next: NextFunct
 
     document.content = content;
     await document.save();
+
+    // Auto-checkpoint: create a version snapshot if the last one is older than 10 minutes
+    // Runs fire-and-forget so it doesn't block the response
+    (async () => {
+      try {
+        const lastVersion = await Version.findOne({ document: id })
+          .sort({ versionNumber: -1 })
+          .select('createdAt')
+          .lean();
+
+        const shouldCheckpoint =
+          !lastVersion ||
+          Date.now() - new Date(lastVersion.createdAt).getTime() > AUTO_CHECKPOINT_INTERVAL_MS;
+
+        if (shouldCheckpoint) {
+          const versionNumber = await Version.getNextVersionNumber(id);
+          const newVersion = await Version.create({
+            document: id,
+            versionNumber,
+            title: document.title,
+            content: document.content,
+            createdBy: userId,
+            source: 'auto',
+          });
+          await newVersion.populate('createdBy', 'name email avatarColor');
+          logger.info(`Auto-checkpoint created: version ${versionNumber} for document ${id}`);
+          try {
+            const io = getIO();
+            io.to(`doc:${id}`).emit('version:created', {
+              documentId: id,
+              version: newVersion,
+            });
+          } catch (sErr) {
+            logger.warn('Failed to broadcast auto-checkpoint version', { error: sErr });
+          }
+        }
+      } catch (autoErr) {
+        logger.warn('Auto-checkpoint failed (non-critical)', { error: autoErr });
+      }
+    })();
 
     await document.populate('owner', 'name email avatarColor');
     await document.populate('collaborators.user', 'name email avatarColor');

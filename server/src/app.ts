@@ -3,6 +3,8 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
 import documentRoutes from './routes/document.routes';
+import versionRoutes from './routes/version.routes';
+import commentRoutes from './routes/comment.routes';
 import userRoutes from './routes/user.routes';
 import { errorHandler } from './middleware/errorHandler';
 import morgan from 'morgan';
@@ -44,6 +46,8 @@ app.get('/api/health', (req, res) => {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/documents/:id/versions', versionRoutes);
+app.use('/api/documents/:id/comments', commentRoutes);
 app.use('/api/users', userRoutes);
 
 // Global Error Handler

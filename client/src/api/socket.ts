@@ -13,6 +13,8 @@ export interface ServerToClientEvents {
   'document:joined': (data: { userId: string }) => void;
   'document:left': (data: { userId: string }) => void;
   'presence:update': (users: UserPresence[]) => void;
+  'version:created': (data: { documentId: string; version: any }) => void;
+  'comment:updated': (data: { documentId: string }) => void;
 }
 
 export interface ClientToServerEvents {

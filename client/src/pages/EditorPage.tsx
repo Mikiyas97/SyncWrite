@@ -8,7 +8,10 @@ import LinkExtension from '@tiptap/extension-link';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { PresenceAvatars } from '../components/editor/PresenceAvatars';
 import { ShareModal } from '../components/documents/ShareModal';
+import { VersionHistoryPanel } from '../components/editor/VersionHistoryPanel';
+import { CommentsPanel } from '../components/editor/CommentsPanel';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
+import { createManualVersion } from '../services/versionService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
 import { useAuth } from '../hooks/useAuth';
 import type { Document } from '../types/document';
@@ -24,6 +27,9 @@ import {
   Share2,
   Eye,
   Lock,
+  History,
+  MessageSquare,
+  Save,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
@@ -43,6 +49,13 @@ export const EditorPage = () => {
   const [title, setTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  // Panel state: only one panel open at a time
+  type ActivePanel = 'none' | 'versions' | 'comments';
+  const [activePanel, setActivePanel] = useState<ActivePanel>('none');
+  const [isPreviewingVersion, setIsPreviewingVersion] = useState(false);
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+  const liveContentRef = useRef<Record<string, any> | null>(null);
 
   // ---- Permission Derivation ----
   const currentUserId = user?._id;
@@ -289,6 +302,74 @@ export const EditorPage = () => {
     navigate('/dashboard');
   }, [flushSave, navigate]);
 
+  // ---- Panel toggles ----
+
+  const togglePanel = useCallback((panel: 'versions' | 'comments') => {
+    setActivePanel((prev) => (prev === panel ? 'none' : panel));
+    // If we're previewing a version and closing the panel, restore live content
+    if (isPreviewingVersion) {
+      setIsPreviewingVersion(false);
+      if (editor && liveContentRef.current) {
+        isRemoteUpdateRef.current = true;
+        editor.commands.setContent(liveContentRef.current);
+        isRemoteUpdateRef.current = false;
+        editor.setEditable(canEdit);
+        liveContentRef.current = null;
+      }
+    }
+  }, [isPreviewingVersion, editor, canEdit]);
+
+  const handlePreviewVersion = useCallback((content: Record<string, any>) => {
+    if (!editor) return;
+    // Save live content before previewing
+    if (!liveContentRef.current) {
+      liveContentRef.current = editor.getJSON();
+    }
+    setIsPreviewingVersion(true);
+    editor.setEditable(false);
+    isRemoteUpdateRef.current = true;
+    editor.commands.setContent(content);
+    isRemoteUpdateRef.current = false;
+  }, [editor]);
+
+  const handleClearPreview = useCallback(() => {
+    if (!editor || !isPreviewingVersion) return;
+    setIsPreviewingVersion(false);
+    if (liveContentRef.current) {
+      isRemoteUpdateRef.current = true;
+      editor.commands.setContent(liveContentRef.current);
+      isRemoteUpdateRef.current = false;
+      liveContentRef.current = null;
+    }
+    editor.setEditable(canEdit);
+  }, [editor, isPreviewingVersion, canEdit]);
+
+  const handleRestoreVersion = useCallback((updatedDoc: any) => {
+    setDocument(updatedDoc);
+    setTitle(updatedDoc.title);
+    setIsPreviewingVersion(false);
+    liveContentRef.current = null;
+    if (editor && updatedDoc.content) {
+      isRemoteUpdateRef.current = true;
+      editor.commands.setContent(updatedDoc.content);
+      isRemoteUpdateRef.current = false;
+      editor.setEditable(canEdit);
+    }
+  }, [editor, canEdit]);
+
+  const handleSaveVersion = useCallback(async () => {
+    if (!id || isSavingVersion) return;
+    setIsSavingVersion(true);
+    try {
+      await flushSave();
+      await createManualVersion(id);
+    } catch (err) {
+      console.error('Failed to save version:', err);
+    } finally {
+      setIsSavingVersion(false);
+    }
+  }, [id, isSavingVersion, flushSave]);
+
   // ---- Title editing ----
 
   const handleTitleBlur = async () => {
@@ -403,9 +484,53 @@ export const EditorPage = () => {
             )}
           </div>
 
-          {/* Right: Presence Avatars + Share Button + Save Status */}
-          <div className="flex items-center gap-3 shrink-0 ml-4">
+          {/* Right: Presence Avatars + Panel Buttons + Share + Save Status */}
+          <div className="flex items-center gap-2 shrink-0 ml-4">
             <PresenceAvatars users={activeUsers} currentUserId={user?._id} />
+            <div className="h-4 w-px bg-gray-200" />
+
+            {/* Save Version Button */}
+            {canEdit && (
+              <button
+                onClick={handleSaveVersion}
+                disabled={isSavingVersion}
+                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                title="Save version snapshot"
+              >
+                {isSavingVersion ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+
+            {/* Version History Button */}
+            <button
+              onClick={() => togglePanel('versions')}
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                activePanel === 'versions'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Version history"
+            >
+              <History className="h-3.5 w-3.5" />
+            </button>
+
+            {/* Comments Button */}
+            <button
+              onClick={() => togglePanel('comments')}
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                activePanel === 'comments'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+              title="Comments"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+            </button>
+
             <div className="h-4 w-px bg-gray-200" />
             <button
               onClick={() => setIsShareModalOpen(true)}
@@ -433,11 +558,49 @@ export const EditorPage = () => {
       {/* Toolbar */}
       <EditorToolbar editor={editor} disabled={!canEdit} />
 
-      {/* Editor Content Container (Paper style) */}
-      <div className="flex-1 max-w-4xl w-full mx-auto py-12 px-4 sm:px-6">
-        <div className="bg-white border border-gray-300 shadow-sm rounded min-h-[800px]">
-          <EditorContent editor={editor} />
+      {/* Main content area with optional side panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Editor Content Container (Paper style) */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Version preview banner */}
+          {isPreviewingVersion && (
+            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-sm text-amber-800">
+              <Eye className="h-4 w-4" />
+              <span className="font-medium">Previewing a previous version</span>
+              <span className="text-amber-600">— The editor is read-only</span>
+            </div>
+          )}
+          <div className="max-w-4xl w-full mx-auto py-12 px-4 sm:px-6">
+            <div className="bg-white border border-gray-300 shadow-sm rounded min-h-[800px]">
+              <EditorContent editor={editor} />
+            </div>
+          </div>
         </div>
+
+        {/* Version History Panel */}
+        {id && (
+          <VersionHistoryPanel
+            documentId={id}
+            isOpen={activePanel === 'versions'}
+            onClose={() => togglePanel('versions')}
+            canRestore={canEdit}
+            onPreviewVersion={handlePreviewVersion}
+            onClearPreview={handleClearPreview}
+            onRestore={handleRestoreVersion}
+          />
+        )}
+
+        {/* Comments Panel */}
+        {id && (
+          <CommentsPanel
+            documentId={id}
+            isOpen={activePanel === 'comments'}
+            onClose={() => togglePanel('comments')}
+            userRole={userRole}
+            currentUserId={currentUserId || ''}
+            isDocumentOwner={isOwner}
+          />
+        )}
       </div>
     </div>
   );
