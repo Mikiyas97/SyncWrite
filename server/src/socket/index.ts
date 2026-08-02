@@ -38,13 +38,17 @@ export const initSocket = (server: HttpServer) => {
         return acc;
       }, {} as Record<string, string>);
 
-      const token = cookies['jwt'];
+      const token = cookies['access_token'] || cookies['jwt'];
       if (!token) {
         return next(new Error('Authentication error: Token missing'));
       }
 
       const secret = process.env.JWT_SECRET || 'fallback_secret';
-      const decoded = jwt.verify(token, secret) as { userId: string };
+      const decoded = jwt.verify(token, secret) as { userId: string; type?: string };
+
+      if (decoded.type && decoded.type !== 'access') {
+        return next(new Error('Authentication error: Invalid token type'));
+      }
 
       // Fetch user details for presence awareness
       const user = await User.findById(decoded.userId).select('name email avatarColor');

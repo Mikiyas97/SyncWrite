@@ -1,21 +1,49 @@
 import { Router } from 'express';
-import { register, login, logout, getMe } from '../controllers/auth.controller';
+import {
+  register,
+  login,
+  logout,
+  getMe,
+  refresh,
+  googleLogin,
+} from '../controllers/auth.controller';
 import { protect } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { registerSchema, loginSchema } from '../validators/auth.validator';
+import {
+  registerSchema,
+  loginSchema,
+  googleLoginSchema,
+} from '../validators/auth.validator';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
-// Rate limiting for auth routes to prevent brute force
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10, // Limit each IP to 10 requests per windowMs
-  message: { success: false, message: 'Too many authentication attempts, please try again later.' }
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    message: 'Too many registration attempts, please try again later.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
-router.post('/register', authLimiter, validate(registerSchema), register);
-router.post('/login', authLimiter, validate(loginSchema), login);
+const loginLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    message: 'Too many login attempts. Please try again in a minute.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post('/register', registerLimiter, validate(registerSchema), register);
+router.post('/login', loginLimiter, validate(loginSchema), login);
+router.post('/google-login', loginLimiter, validate(googleLoginSchema), googleLogin);
+router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.get('/me', protect, getMe);
 

@@ -5,13 +5,21 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api from '../api/axios';
 import { useAuth } from '../hooks/useAuth';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
+import { STRONG_PASSWORD_REGEX, STRONG_PASSWORD_MESSAGE } from '../utils/password';
 import { FileText, Loader2, AlertCircle } from 'lucide-react';
 
-const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters').max(50),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2, 'Name must be at least 2 characters').max(50),
+    email: z.string().email('Invalid email address'),
+    password: z.string().regex(STRONG_PASSWORD_REGEX, STRONG_PASSWORD_MESSAGE),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
@@ -31,8 +39,9 @@ export const Register = () => {
   const onSubmit = async (data: RegisterFormValues) => {
     try {
       setServerError('');
-      await api.post('/auth/register', data);
-      await checkAuth(); // Refetches user state and populates Context
+      const { confirmPassword: _, ...payload } = data;
+      await api.post('/auth/register', payload);
+      await checkAuth();
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
       setServerError(
@@ -60,7 +69,7 @@ export const Register = () => {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {serverError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
@@ -99,7 +108,7 @@ export const Register = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Password</label>
               <input
@@ -113,10 +122,28 @@ export const Register = () => {
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
+              <p className="mt-1 text-xs text-gray-500">
+                Must be 8+ characters with uppercase, lowercase, a number, and a special character (@$!%*?&)
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <input
+                {...register('confirmPassword')}
+                type="password"
+                className={`mt-1 block w-full px-3 py-2 border ${
+                  errors.confirmPassword ? 'border-red-300' : 'border-gray-300'
+                } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors`}
+                placeholder="••••••••"
+              />
+              {errors.confirmPassword && (
+                <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+              )}
             </div>
           </div>
 
-          <div>
+          <div className="space-y-3">
             <button
               type="submit"
               disabled={isSubmitting}
@@ -128,6 +155,17 @@ export const Register = () => {
                 'Create account'
               )}
             </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton onError={setServerError} />
           </div>
         </form>
       </div>

@@ -5,6 +5,8 @@ export interface IUser extends Document {
   email: string;
   passwordHash: string;
   avatarColor: string;
+  authProvider: 'local' | 'google';
+  googleId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +32,16 @@ const UserSchema: Schema = new Schema(
     avatarColor: {
       type: String,
       default: '#3B82F6', // Default tailwind blue-500
+    },
+    authProvider: {
+      type: String,
+      enum: ['local', 'google'],
+      default: 'local',
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
     },
   },
   {

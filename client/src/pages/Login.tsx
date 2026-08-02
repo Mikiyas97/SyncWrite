@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import api from '../api/axios';
 import { useAuth } from '../hooks/useAuth';
+import { GoogleSignInButton } from '../components/auth/GoogleSignInButton';
 import { FileText, Loader2, AlertCircle } from 'lucide-react';
 
 const loginSchema = z.object({
@@ -31,7 +32,7 @@ export const Login = () => {
     try {
       setServerError('');
       await api.post('/auth/login', data);
-      await checkAuth(); // Refetches user state and populates Context
+      await checkAuth();
       navigate('/dashboard', { replace: true });
     } catch (error: any) {
       setServerError(
@@ -59,7 +60,7 @@ export const Login = () => {
             </Link>
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>
           {serverError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
@@ -83,7 +84,7 @@ export const Login = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Password</label>
               <input
@@ -100,7 +101,7 @@ export const Login = () => {
             </div>
           </div>
 
-          <div>
+          <div className="space-y-3">
             <button
               type="submit"
               disabled={isSubmitting}
@@ -112,6 +113,17 @@ export const Login = () => {
                 'Sign in'
               )}
             </button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <GoogleSignInButton onError={setServerError} />
           </div>
         </form>
       </div>

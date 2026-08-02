@@ -1,11 +1,11 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import './env';
 
 import http from 'http';
 import mongoose from 'mongoose';
 import app from './app';
 import { logger } from './utils/logger';
 import { initSocket } from './socket';
+import { initFirebase } from './config/firebase';
 
 const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/syncwrite';
@@ -14,6 +14,9 @@ const server = http.createServer(app);
 
 // Initialize Socket.IO
 initSocket(server);
+
+// Initialize Firebase Admin at startup so config issues are visible immediately
+initFirebase();
 
 mongoose
   .connect(MONGODB_URI)
