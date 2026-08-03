@@ -13,33 +13,31 @@ export interface SearchHighlightState {
 
 /**
  * TipTap extension that highlights all occurrences of a search term in the document
- * using ProseMirror decorations. Supports navigating between matches.
+ * using ProseMirror decorations via Plugin transaction metadata.
  */
 export const SearchHighlightExtension = Extension.create({
   name: 'searchHighlight',
 
-  addOptions() {
-    return {
-      searchTerm: '',
-      currentMatch: 0,
-    };
-  },
-
   addProseMirrorPlugins() {
-    const extension = this;
-
     return [
-      new Plugin({
+      new Plugin<SearchHighlightState>({
         key: searchHighlightKey,
         state: {
           init(): SearchHighlightState {
             return { searchTerm: '', matchCount: 0, currentMatch: 0, matchPositions: [] };
           },
-          apply(_tr, _oldState, _prevEditorState, newState): SearchHighlightState {
-            const searchTerm = extension.options.searchTerm as string;
-            const currentMatch = extension.options.currentMatch as number;
+          apply(tr, oldState, _prevEditorState, newState): SearchHighlightState {
+            const meta = tr.getMeta(searchHighlightKey);
 
-            if (!searchTerm || searchTerm.length === 0) {
+            let searchTerm = oldState.searchTerm;
+            let currentMatch = oldState.currentMatch;
+
+            if (meta) {
+              if (typeof meta.searchTerm === 'string') searchTerm = meta.searchTerm;
+              if (typeof meta.currentMatch === 'number') currentMatch = meta.currentMatch;
+            }
+
+            if (!searchTerm || searchTerm.trim().length === 0) {
               return { searchTerm: '', matchCount: 0, currentMatch: 0, matchPositions: [] };
             }
 
@@ -59,10 +57,14 @@ export const SearchHighlightExtension = Extension.create({
               }
             });
 
+            const validCurrent = matchPositions.length > 0
+              ? Math.min(Math.max(0, currentMatch), matchPositions.length - 1)
+              : 0;
+
             return {
               searchTerm,
               matchCount: matchPositions.length,
-              currentMatch: matchPositions.length > 0 ? Math.min(currentMatch, matchPositions.length - 1) : 0,
+              currentMatch: validCurrent,
               matchPositions,
             };
           },

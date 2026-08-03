@@ -158,9 +158,12 @@ export const DocumentCard = ({
 
       {/* Footer: updated time + collaborators */}
       <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
-          <Clock className="h-3.5 w-3.5" />
-          <span>Edited {formatDate(document.updatedAt)}</span>
+        <div className="flex flex-col text-[11px] text-gray-400 dark:text-gray-500 gap-0.5">
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>Edited {formatDate(document.updatedAt)}</span>
+          </div>
+          <span className="text-[10px] text-gray-400/80 dark:text-gray-500/80">Created {formatDate(document.createdAt)}</span>
         </div>
 
         {collaboratorCount > 0 && (

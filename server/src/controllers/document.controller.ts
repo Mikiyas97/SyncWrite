@@ -61,7 +61,8 @@ export const listDocuments = async (req: Request, res: Response, next: NextFunct
 
     // Optional text search on title
     if (search && search.trim()) {
-      filter.title = { $regex: search.trim(), $options: 'i' };
+      const escapedSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.title = { $regex: escapedSearch, $options: 'i' };
     }
 
     const documents = await Document.find(filter)

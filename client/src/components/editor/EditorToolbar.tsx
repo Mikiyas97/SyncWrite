@@ -16,11 +16,14 @@ import {
   Heading2,
   Heading3,
   Pilcrow,
+  Search,
 } from 'lucide-react';
 
 interface EditorToolbarProps {
   editor: Editor | null;
   disabled?: boolean;
+  onToggleFind?: () => void;
+  isFindActive?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -42,7 +45,7 @@ const ToolbarButton = ({ onClick, isActive, disabled, title, children }: Toolbar
       focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1
       disabled:opacity-40 disabled:cursor-not-allowed
       ${isActive
-        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 shadow-sm'
+        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 shadow-xs'
         : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100'
       }
     `}
@@ -55,7 +58,12 @@ const ToolbarDivider = () => (
   <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1 self-center" />
 );
 
-export const EditorToolbar = ({ editor, disabled = false }: EditorToolbarProps) => {
+export const EditorToolbar = ({
+  editor,
+  disabled = false,
+  onToggleFind,
+  isFindActive = false,
+}: EditorToolbarProps) => {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
 
@@ -100,7 +108,7 @@ export const EditorToolbar = ({ editor, disabled = false }: EditorToolbarProps) 
           onClick={() => editor.chain().focus().setParagraph().run()}
           isActive={editor.isActive('paragraph') && !editor.isActive('heading')}
           disabled={disabled}
-          title="Paragraph"
+          title="Normal Text"
         >
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
@@ -172,7 +180,7 @@ export const EditorToolbar = ({ editor, disabled = false }: EditorToolbarProps) 
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
           disabled={disabled}
-          title="Ordered List"
+          title="Numbered List"
         >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
@@ -232,6 +240,21 @@ export const EditorToolbar = ({ editor, disabled = false }: EditorToolbarProps) 
           >
             <Unlink className="h-4 w-4" />
           </ToolbarButton>
+        )}
+
+        {/* Find in Document Button */}
+        {onToggleFind && (
+          <>
+            <ToolbarDivider />
+            <ToolbarButton
+              onClick={onToggleFind}
+              isActive={isFindActive}
+              disabled={disabled}
+              title="Find in document (Ctrl+F)"
+            >
+              <Search className="h-4 w-4" />
+            </ToolbarButton>
+          </>
         )}
       </div>
 

@@ -9,7 +9,6 @@ import { RemoteCursorExtension } from '../extensions/CursorExtension';
 import { SearchHighlightExtension } from '../extensions/SearchHighlight';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { PresenceAvatars } from '../components/editor/PresenceAvatars';
-import { TypingIndicator } from '../components/editor/TypingIndicator';
 import { FindReplaceBar } from '../components/editor/FindReplaceBar';
 import { KeyboardShortcutsModal } from '../components/editor/KeyboardShortcutsModal';
 import { ImportMarkdownButton } from '../components/editor/ImportMarkdownButton';
@@ -39,6 +38,7 @@ import {
   Save,
   Download,
   Keyboard,
+  Search,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
@@ -104,7 +104,7 @@ export const EditorPage = () => {
       // Set flag so onUpdate and onSelectionUpdate know this is a remote change
       isRemoteUpdateRef.current = true;
       const { from, to } = ed.state.selection;
-      ed.commands.setContent(content, false);
+      ed.commands.setContent(content, { emitUpdate: false });
 
       // Restore local selection clamped to new document bounds
       const docSize = ed.state.doc.content.size;
@@ -236,7 +236,7 @@ export const EditorPage = () => {
           class: 'text-blue-600 underline hover:text-blue-800 cursor-pointer',
         },
       }),
-      RemoteCursorExtension,
+      RemoteCursorExtension.configure(cursorExtensionOptions),
       SearchHighlightExtension,
     ],
     editorProps: {
@@ -866,6 +866,19 @@ export const EditorPage = () => {
               <MessageSquare className="h-3.5 w-3.5" />
             </button>
 
+            {/* Find in Document Button */}
+            <button
+              onClick={() => setIsFindBarOpen((prev) => !prev)}
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                isFindBarOpen
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title="Find in document (Ctrl+F)"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
+
             {/* Keyboard Shortcuts Button */}
             <button
               onClick={() => setIsShortcutsModalOpen(true)}
@@ -906,19 +919,22 @@ export const EditorPage = () => {
       />
 
       {/* Toolbar */}
-      <EditorToolbar editor={editor} disabled={!canEdit} />
-
-      {/* Find & Replace Bar */}
-      <FindReplaceBar
+      <EditorToolbar
         editor={editor}
-        isOpen={isFindBarOpen}
-        onClose={() => setIsFindBarOpen(false)}
+        disabled={!canEdit}
+        onToggleFind={() => setIsFindBarOpen((prev) => !prev)}
+        isFindActive={isFindBarOpen}
       />
 
- 
-
       {/* Main content area with optional side panel */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Floating Find & Replace Bar */}
+        <FindReplaceBar
+          editor={editor}
+          isOpen={isFindBarOpen}
+          onClose={() => setIsFindBarOpen(false)}
+        />
+
         {/* Editor Content Container (Paper style) */}
         <div className="flex-1 overflow-y-auto">
           {/* Version preview banner */}
