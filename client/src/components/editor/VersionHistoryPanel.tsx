@@ -182,16 +182,16 @@ export const VersionHistoryPanel = ({
   if (!isOpen) return null;
 
   return (
-    <div className="w-80 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden shrink-0 shadow-lg">
+    <div className="w-80 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col h-full overflow-hidden shrink-0 shadow-lg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 shrink-0">
         <div className="flex items-center gap-2">
-          <History className="h-4 w-4 text-gray-600" />
-          <h3 className="text-sm font-semibold text-gray-900">Version History</h3>
+          <History className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Version History</h3>
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Close"
         >
           <X className="h-4 w-4" />
@@ -200,8 +200,8 @@ export const VersionHistoryPanel = ({
 
       {/* Preview indicator */}
       {selectedVersionId && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2 text-xs text-blue-700">
+        <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-100 dark:border-blue-800 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 text-xs text-blue-700 dark:text-blue-400">
             <Eye className="h-3.5 w-3.5" />
             <span className="font-medium">Previewing version</span>
           </div>
@@ -260,14 +260,14 @@ export const VersionHistoryPanel = ({
                 <button
                   key={version._id}
                   onClick={() => handleSelectVersion(version)}
-                  className={`w-full text-left px-4 py-3 border-b border-gray-100 transition-colors hover:bg-gray-50 ${
-                    isSelected ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                  className={`w-full text-left px-4 py-3 border-b border-gray-100 dark:border-gray-700 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/50 ${
+                    isSelected ? 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-500' : ''
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           v{version.versionNumber}
                         </span>
                         <span
@@ -284,12 +284,12 @@ export const VersionHistoryPanel = ({
                         >
                           {version.createdBy.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-xs text-gray-600 truncate">
+                        <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
                           {version.createdBy.name}
                         </span>
                       </div>
                       <span
-                        className="text-[11px] text-gray-400"
+                        className="text-[11px] text-gray-400 dark:text-gray-500"
                         title={formatFullDate(version.createdAt)}
                       >
                         {formatRelativeTime(version.createdAt)}
@@ -309,7 +309,7 @@ export const VersionHistoryPanel = ({
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 bg-gray-50 dark:bg-gray-700 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
                 >
                   {isLoadingMore ? (
                     <Loader2 className="h-3 w-3 animate-spin" />

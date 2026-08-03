@@ -182,21 +182,21 @@ export const CommentsPanel = ({
   const displayedComments = showResolved ? comments : openComments;
 
   return (
-    <div className="w-80 border-l border-gray-200 bg-white flex flex-col h-full overflow-hidden shrink-0 shadow-lg">
+    <div className="w-80 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col h-full overflow-hidden shrink-0 shadow-lg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50 shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 shrink-0">
         <div className="flex items-center gap-2">
-          <MessageSquare className="h-4 w-4 text-gray-600" />
-          <h3 className="text-sm font-semibold text-gray-900">Comments</h3>
+          <MessageSquare className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Comments</h3>
           {openComments.length > 0 && (
-            <span className="px-1.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
+            <span className="px-1.5 py-0.5 text-xs font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400 rounded-full">
               {openComments.length}
             </span>
           )}
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Close"
         >
           <X className="h-4 w-4" />
@@ -205,14 +205,14 @@ export const CommentsPanel = ({
 
       {/* New Comment Form (Owner, Editor, Commenter) */}
       {canAddComment ? (
-        <form onSubmit={handleCreateComment} className="p-3 border-b border-gray-200 bg-white shrink-0">
+        <form onSubmit={handleCreateComment} className="p-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shrink-0">
           <div className="flex flex-col gap-2">
             <textarea
               value={newCommentText}
               onChange={(e) => setNewCommentText(e.target.value)}
               placeholder="Add a comment..."
               rows={2}
-              className="w-full text-xs p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
+              className="w-full text-xs p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent resize-none"
               maxLength={2000}
             />
             <div className="flex justify-end">
@@ -232,18 +232,18 @@ export const CommentsPanel = ({
           </div>
         </form>
       ) : (
-        <div className="p-3 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 text-center">
+        <div className="p-3 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400 text-center">
           You are viewing in read-only mode
         </div>
       )}
 
       {/* Filter toggle for resolved comments */}
       {resolvedComments.length > 0 && (
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between text-xs text-gray-500">
+        <div className="px-4 py-2 bg-gray-50 dark:bg-gray-800/80 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
           <span>{resolvedComments.length} resolved thread(s)</span>
           <button
             onClick={() => setShowResolved(!showResolved)}
-            className="text-blue-600 hover:underline font-medium"
+            className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
           >
             {showResolved ? 'Hide resolved' : 'Show resolved'}
           </button>
@@ -251,29 +251,29 @@ export const CommentsPanel = ({
       )}
 
       {/* Comments List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+      <div className="flex-1 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-700/60">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400 dark:text-gray-500">
             <Loader2 className="h-6 w-6 animate-spin mb-2" />
             <p className="text-xs">Loading comments...</p>
           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
             <AlertCircle className="h-6 w-6 text-red-400 mb-2" />
-            <p className="text-xs text-red-500">{error}</p>
+            <p className="text-xs text-red-500 dark:text-red-400">{error}</p>
             <button
               onClick={fetchComments}
-              className="mt-3 text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
+              className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1"
             >
               <RotateCw className="h-3 w-3" />
               Retry
             </button>
           </div>
         ) : displayedComments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-gray-400">
+          <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-gray-400 dark:text-gray-500">
             <MessageSquare className="h-8 w-8 mb-2 opacity-50" />
-            <p className="text-sm font-medium text-gray-500">No comments yet</p>
-            <p className="text-xs mt-1">Start a conversation on this document.</p>
+            <p className="text-sm font-medium text-gray-500 dark:text-gray-400">No comments yet</p>
+            <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Start a conversation on this document.</p>
           </div>
         ) : (
           displayedComments.map((comment) => {
@@ -285,7 +285,7 @@ export const CommentsPanel = ({
               <div
                 key={comment._id}
                 className={`p-3 transition-colors ${
-                  comment.isResolved ? 'bg-gray-50 opacity-75' : 'bg-white'
+                  comment.isResolved ? 'bg-gray-50/60 dark:bg-gray-900/40 opacity-75' : 'bg-white dark:bg-gray-800'
                 }`}
               >
                 {/* Author row */}
@@ -297,10 +297,10 @@ export const CommentsPanel = ({
                     >
                       {comment.author.name.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-xs font-semibold text-gray-900 truncate">
+                    <span className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">
                       {comment.author.name}
                     </span>
-                    <span className="text-[10px] text-gray-400 shrink-0">
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 shrink-0">
                       {formatRelativeTime(comment.createdAt)}
                     </span>
                   </div>
@@ -312,8 +312,8 @@ export const CommentsPanel = ({
                         onClick={() => handleToggleResolve(comment._id)}
                         className={`p-1 rounded transition-colors ${
                           comment.isResolved
-                            ? 'text-green-600 hover:bg-green-50'
-                            : 'text-gray-400 hover:text-green-600 hover:bg-gray-100'
+                            ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/40'
+                            : 'text-gray-400 dark:text-gray-500 hover:text-green-600 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700'
                         }`}
                         title={comment.isResolved ? 'Re-open thread' : 'Resolve thread'}
                       >
@@ -323,7 +323,7 @@ export const CommentsPanel = ({
                     {canDeleteTop && (
                       <button
                         onClick={() => handleDelete(comment._id)}
-                        className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        className="p-1 rounded text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         title="Delete comment"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -333,13 +333,13 @@ export const CommentsPanel = ({
                 </div>
 
                 {/* Comment Content */}
-                <p className="text-xs text-gray-800 whitespace-pre-wrap pl-7 mb-2">
+                <p className="text-xs text-gray-800 dark:text-gray-200 whitespace-pre-wrap pl-7 mb-2">
                   {comment.content}
                 </p>
 
                 {/* Resolved banner info */}
                 {comment.isResolved && comment.resolvedBy && (
-                  <div className="pl-7 mb-2 flex items-center gap-1 text-[10px] text-green-700">
+                  <div className="pl-7 mb-2 flex items-center gap-1 text-[10px] text-green-700 dark:text-green-400">
                     <Check className="h-3 w-3" />
                     <span>Resolved by {comment.resolvedBy.name}</span>
                   </div>
@@ -347,7 +347,7 @@ export const CommentsPanel = ({
 
                 {/* Replies list */}
                 {comment.replies && comment.replies.length > 0 && (
-                  <div className="pl-7 mt-2 space-y-2 border-l-2 border-gray-100 ml-2">
+                  <div className="pl-7 mt-2 space-y-2 border-l-2 border-gray-100 dark:border-gray-700 ml-2">
                     {comment.replies.map((reply) => {
                       const canDeleteReply =
                         reply.author._id === currentUserId || isDocumentOwner;
@@ -362,24 +362,24 @@ export const CommentsPanel = ({
                               >
                                 {reply.author.name.charAt(0).toUpperCase()}
                               </div>
-                              <span className="text-[11px] font-medium text-gray-800 truncate">
+                              <span className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">
                                 {reply.author.name}
                               </span>
-                              <span className="text-[9px] text-gray-400 shrink-0">
+                              <span className="text-[9px] text-gray-400 dark:text-gray-500 shrink-0">
                                 {formatRelativeTime(reply.createdAt)}
                               </span>
                             </div>
                             {canDeleteReply && (
                               <button
                                 onClick={() => handleDelete(reply._id, comment._id)}
-                                className="p-0.5 rounded text-gray-400 hover:text-red-600 transition-colors"
+                                className="p-0.5 rounded text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors"
                                 title="Delete reply"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
                             )}
                           </div>
-                          <p className="text-xs text-gray-700 whitespace-pre-wrap pl-5">
+                          <p className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap pl-5">
                             {reply.content}
                           </p>
                         </div>
@@ -399,7 +399,7 @@ export const CommentsPanel = ({
                           placeholder="Write a reply..."
                           rows={2}
                           autoFocus
-                          className="w-full text-xs p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                          className="w-full text-xs p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:focus:ring-blue-500 resize-none"
                           maxLength={2000}
                         />
                         <div className="flex justify-end gap-1.5">
@@ -408,14 +408,14 @@ export const CommentsPanel = ({
                               setActiveReplyId(null);
                               setReplyText('');
                             }}
-                            className="px-2 py-1 text-[11px] font-medium text-gray-500 hover:text-gray-700"
+                            className="px-2 py-1 text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleCreateReply(comment._id)}
                             disabled={!replyText.trim() || isSubmittingReply}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
                           >
                             {isSubmittingReply && <Loader2 className="h-3 w-3 animate-spin" />}
                             Reply
@@ -428,7 +428,7 @@ export const CommentsPanel = ({
                           setActiveReplyId(comment._id);
                           setReplyText('');
                         }}
-                        className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-800"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                       >
                         <Reply className="h-3 w-3" />
                         Reply

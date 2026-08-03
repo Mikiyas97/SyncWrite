@@ -175,16 +175,16 @@ export const ShareModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100 dark:border-gray-700 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
           <div>
-            <h3 className="font-semibold text-gray-900">Share document</h3>
-            <p className="text-xs text-gray-500 truncate max-w-[280px]">{document.title}</p>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100">Share document</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[280px]">{document.title}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -194,14 +194,14 @@ export const ShareModal = ({
         <div className="p-6 space-y-6 overflow-y-auto">
           {/* Status Notifications */}
           {error && (
-            <div className="flex items-center gap-2 p-3 text-xs text-red-600 bg-red-50 rounded-lg border border-red-100">
+            <div className="flex items-center gap-2 p-3 text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-100 dark:border-red-900/50">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           {successMessage && (
-            <div className="flex items-center gap-2 p-3 text-xs text-green-600 bg-green-50 rounded-lg border border-green-100">
+            <div className="flex items-center gap-2 p-3 text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/40 rounded-lg border border-green-100 dark:border-green-900/50">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               <span>{successMessage}</span>
             </div>
@@ -210,13 +210,13 @@ export const ShareModal = ({
           {/* Add Collaborator Form (Owner Only) */}
           {isOwner && (
             <form onSubmit={handleAddCollaborator} className="space-y-3">
-              <label className="block text-xs font-medium text-gray-700">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                 Add people by name or email
               </label>
               <div className="flex items-center gap-2">
                 <div className="relative flex-1" ref={dropdownRef}>
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
                     <input
                       ref={inputRef}
                       type="text"
@@ -228,17 +228,17 @@ export const ShareModal = ({
                         setTimeout(() => setShowDropdown(false), 200);
                       }}
                       placeholder="Search by name or email..."
-                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       required
                     />
                     {isSearching && (
-                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400 dark:text-gray-500" />
                     )}
                   </div>
 
                   {/* Search Results Dropdown */}
                   {showDropdown && searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 max-h-48 overflow-y-auto">
                       {searchResults.map((result) => (
                         <button
                           key={result._id}
@@ -247,7 +247,7 @@ export const ShareModal = ({
                             e.preventDefault();
                             selectUser(result);
                           }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                          className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors text-left"
                         >
                           <div
                             className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold text-white shrink-0"
@@ -256,8 +256,8 @@ export const ShareModal = ({
                             {getInitials(result.name)}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium text-gray-900 truncate">{result.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{result.email}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{result.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{result.email}</p>
                           </div>
                         </button>
                       ))}
@@ -268,7 +268,7 @@ export const ShareModal = ({
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'editor' | 'viewer' | 'commenter')}
-                  className="px-2.5 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 font-medium"
+                  className="px-2.5 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 dark:text-gray-200 font-medium"
                 >
                   <option value="viewer">Viewer</option>
                   <option value="commenter">Commenter</option>
@@ -295,11 +295,11 @@ export const ShareModal = ({
 
           {/* Collaborators List */}
           <div className="space-y-3">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               People with access
             </h4>
 
-            <div className="space-y-2 divide-y divide-gray-100">
+            <div className="space-y-2 divide-y divide-gray-100 dark:divide-gray-700/60">
               {/* Owner */}
               <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3 min-w-0">
@@ -310,17 +310,17 @@ export const ShareModal = ({
                     {getInitials(document.owner.name)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                       {document.owner.name}{' '}
                       {currentUser?._id === document.owner._id && (
-                        <span className="text-gray-400 font-normal">(You)</span>
+                        <span className="text-gray-400 dark:text-gray-500 font-normal">(You)</span>
                       )}
                     </p>
-                    <p className="text-xs text-gray-500 truncate">{document.owner.email}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{document.owner.email}</p>
                   </div>
                 </div>
 
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 rounded-full shrink-0">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-transparent dark:border-amber-900/50 rounded-full shrink-0">
                   <Crown className="h-3 w-3" />
                   Owner
                 </span>
@@ -341,16 +341,16 @@ export const ShareModal = ({
                         {getInitials(c.user.name)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {c.user.name} {isCurrent && <span className="text-gray-400 font-normal">(You)</span>}
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {c.user.name} {isCurrent && <span className="text-gray-400 dark:text-gray-500 font-normal">(You)</span>}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">{c.user.email}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{c.user.email}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
                       {isLoadingThis ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+                        <Loader2 className="h-4 w-4 animate-spin text-gray-400 dark:text-gray-500" />
                       ) : isOwner ? (
                         <>
                           <select
@@ -361,7 +361,7 @@ export const ShareModal = ({
                                 e.target.value as DocumentRole & ('editor' | 'viewer' | 'commenter')
                               )
                             }
-                            className="px-2 py-1 text-xs border border-gray-200 rounded-md bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="px-2 py-1 text-xs border border-gray-200 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
                           >
                             <option value="viewer">Viewer</option>
                             <option value="commenter">Commenter</option>
@@ -370,7 +370,7 @@ export const ShareModal = ({
 
                           <button
                             onClick={() => handleRemoveCollaborator(c.user._id)}
-                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                            className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors"
                             title="Remove access"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -378,19 +378,19 @@ export const ShareModal = ({
                         </>
                       ) : isCurrent ? (
                         <div className="flex items-center gap-2">
-                          <span className="capitalize px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                          <span className="capitalize px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-full">
                             {c.role}
                           </span>
                           <button
                             onClick={() => handleRemoveCollaborator(c.user._id)}
-                            className="px-2 py-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                            className="px-2 py-1 text-xs text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/40 rounded transition-colors"
                             title="Leave document"
                           >
                             Leave
                           </button>
                         </div>
                       ) : (
-                        <span className="capitalize px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                        <span className="capitalize px-2.5 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-full">
                           {c.role}
                         </span>
                       )}
@@ -403,10 +403,10 @@ export const ShareModal = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+        <div className="px-6 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200/60 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-gray-700 rounded-lg transition-colors"
           >
             Done
           </button>

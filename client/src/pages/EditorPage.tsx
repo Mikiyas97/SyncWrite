@@ -1,18 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import UnderlineExtension from '@tiptap/extension-underline';
 import TextAlign from '@tiptap/extension-text-align';
 import LinkExtension from '@tiptap/extension-link';
+import { RemoteCursorExtension } from '../extensions/CursorExtension';
+import { SearchHighlightExtension } from '../extensions/SearchHighlight';
 import { EditorToolbar } from '../components/editor/EditorToolbar';
 import { PresenceAvatars } from '../components/editor/PresenceAvatars';
+import { TypingIndicator } from '../components/editor/TypingIndicator';
+import { FindReplaceBar } from '../components/editor/FindReplaceBar';
+import { KeyboardShortcutsModal } from '../components/editor/KeyboardShortcutsModal';
+import { ImportMarkdownButton } from '../components/editor/ImportMarkdownButton';
 import { ShareModal } from '../components/documents/ShareModal';
 import { VersionHistoryPanel } from '../components/editor/VersionHistoryPanel';
 import { CommentsPanel } from '../components/editor/CommentsPanel';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
 import { createManualVersion } from '../services/versionService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useAuth } from '../hooks/useAuth';
 import type { Document } from '../types/document';
 import {
@@ -31,12 +38,14 @@ import {
   MessageSquare,
   Save,
   Download,
+  Keyboard,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
 
 const DEBOUNCE_MS = 2000;
 const SAVED_DISPLAY_MS = 3000;
+const CURSOR_THROTTLE_MS = 100;
 
 export const EditorPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +60,8 @@ export const EditorPage = () => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isFindBarOpen, setIsFindBarOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   // Panel state: only one panel open at a time
   type ActivePanel = 'none' | 'versions' | 'comments';
@@ -75,6 +86,11 @@ export const EditorPage = () => {
   const isSavingRef = useRef(false);
   const isRemoteUpdateRef = useRef(false);
   const editorRef = useRef<ReturnType<typeof useEditor>>(null);
+  const cursorThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingCursorRef = useRef<{ from: number; to: number } | null>(null);
+  const lastEmittedCursorRef = useRef<{ from: number; to: number } | null>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
   // ---- Socket.IO ----
 
@@ -85,15 +101,32 @@ export const EditorPage = () => {
     if (!ed) return;
     console.log(`[Socket] Received remote content update from user ${userId}`);
     try {
-      // Set flag so onUpdate knows this is a remote change (don't re-broadcast or save)
+      // Set flag so onUpdate and onSelectionUpdate know this is a remote change
       isRemoteUpdateRef.current = true;
-      ed.commands.setContent(content);
+      const { from, to } = ed.state.selection;
+      ed.commands.setContent(content, false);
+
+      // Restore local selection clamped to new document bounds
+      const docSize = ed.state.doc.content.size;
+      const minPos = 1;
+      const maxPos = Math.max(1, docSize - 1);
+      const newFrom = Math.min(Math.max(from, minPos), maxPos);
+      const newTo = Math.min(Math.max(to, minPos), maxPos);
+      ed.commands.setTextSelection({ from: newFrom, to: newTo });
     } finally {
       isRemoteUpdateRef.current = false;
     }
   }, []);
 
-  const { activeUsers, emitContentChange } = useDocumentSocket(
+  const {
+    activeUsers,
+    remoteCursors,
+    typingUsers,
+    emitContentChange,
+    emitCursorUpdate,
+    emitTypingStart,
+    emitTypingStop,
+  } = useDocumentSocket(
     id,
     handleRemoteContent,
   );
@@ -102,6 +135,21 @@ export const EditorPage = () => {
   useEffect(() => {
     emitContentChangeRef.current = emitContentChange;
   }, [emitContentChange]);
+
+  const emitCursorUpdateRef = useRef(emitCursorUpdate);
+  useEffect(() => {
+    emitCursorUpdateRef.current = emitCursorUpdate;
+  }, [emitCursorUpdate]);
+
+  const emitTypingStartRef = useRef(emitTypingStart);
+  useEffect(() => {
+    emitTypingStartRef.current = emitTypingStart;
+  }, [emitTypingStart]);
+
+  const emitTypingStopRef = useRef(emitTypingStop);
+  useEffect(() => {
+    emitTypingStopRef.current = emitTypingStop;
+  }, [emitTypingStop]);
 
   // ---- Save logic ----
 
@@ -165,6 +213,11 @@ export const EditorPage = () => {
     }
   }, [saveContent]);
 
+  // ---- Remote cursor extension options (memoized) ----
+  const cursorExtensionOptions = useMemo(() => ({
+    cursors: remoteCursors,
+  }), [remoteCursors]);
+
   // ---- Editor ----
 
   const editor = useEditor({
@@ -183,6 +236,8 @@ export const EditorPage = () => {
           class: 'text-blue-600 underline hover:text-blue-800 cursor-pointer',
         },
       }),
+      RemoteCursorExtension,
+      SearchHighlightExtension,
     ],
     editorProps: {
       attributes: {
@@ -201,6 +256,18 @@ export const EditorPage = () => {
       // Broadcast to other users in the room
       emitContentChangeRef.current(json);
 
+      // Emit typing start
+      if (!isTypingRef.current) {
+        isTypingRef.current = true;
+        emitTypingStartRef.current();
+      }
+      // Reset typing timeout
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = setTimeout(() => {
+        isTypingRef.current = false;
+        emitTypingStopRef.current();
+      }, 2000);
+
       // Immediately show "unsaved" status
       setSaveStatus('unsaved');
 
@@ -217,7 +284,48 @@ export const EditorPage = () => {
         }
       }, DEBOUNCE_MS);
     },
+    onSelectionUpdate: ({ editor: updatedEditor }) => {
+      if (!contentInitializedRef.current || isRemoteUpdateRef.current) return;
+      const { from, to } = updatedEditor.state.selection;
+
+      // If throttled, store pending selection for trailing-edge emit
+      if (cursorThrottleRef.current) {
+        pendingCursorRef.current = { from, to };
+        return;
+      }
+
+      // Emit immediately on leading edge
+      lastEmittedCursorRef.current = { from, to };
+      emitCursorUpdateRef.current({ from, to });
+
+      cursorThrottleRef.current = setTimeout(() => {
+        cursorThrottleRef.current = null;
+        if (pendingCursorRef.current) {
+          const pending = pendingCursorRef.current;
+          pendingCursorRef.current = null;
+          if (
+            !lastEmittedCursorRef.current ||
+            lastEmittedCursorRef.current.from !== pending.from ||
+            lastEmittedCursorRef.current.to !== pending.to
+          ) {
+            lastEmittedCursorRef.current = pending;
+            emitCursorUpdateRef.current(pending);
+          }
+        }
+      }, CURSOR_THROTTLE_MS);
+    },
   });
+
+  // Update remote cursor decorations when remoteCursors changes
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    const tr = editor.state.tr;
+    tr.setMeta('updateRemoteCursors', {
+      cursors: remoteCursors,
+      currentUserId: currentUserId || user?._id,
+    });
+    editor.view.dispatch(tr);
+  }, [editor, remoteCursors, currentUserId, user]);
 
   // ---- Fetch document ----
 
@@ -294,6 +402,8 @@ export const EditorPage = () => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       if (savedDisplayTimerRef.current) clearTimeout(savedDisplayTimerRef.current);
+      if (cursorThrottleRef.current) clearTimeout(cursorThrottleRef.current);
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     };
   }, []);
 
@@ -435,6 +545,18 @@ export const EditorPage = () => {
           const lines = (node.content || []).flatMap((child: Record<string, any>) => renderBlock(child, listPrefix));
           return lines.map((line: string) => `${listPrefix} ${line}`.replace(new RegExp(`^${listPrefix} `), `${listPrefix} `));
         }
+        case 'blockquote': {
+          const lines = (node.content || []).flatMap((child: Record<string, any>) => renderBlock(child));
+          return lines.map((line: string) => `> ${line}`);
+        }
+        case 'codeBlock': {
+          const lang = node.attrs?.language || '';
+          const code = renderInline(node.content || []);
+          return [`\`\`\`${lang}`, code, '```'];
+        }
+        case 'horizontalRule': {
+          return ['---'];
+        }
         default:
           if (node.content) {
             return (node.content || []).flatMap((child: Record<string, any>) => renderBlock(child, listPrefix));
@@ -475,10 +597,43 @@ export const EditorPage = () => {
     <meta charset="utf-8" />
     <title>${exportTitle}</title>
     <style>
-      body { font-family: Arial, sans-serif; padding: 24px; line-height: 1.6; color: #111827; }
-      h1, h2, h3 { color: #111827; }
-      ul, ol { padding-left: 20px; }
-      a { color: #2563eb; }
+      @page {
+        size: A4;
+        margin: 20mm 15mm 20mm 15mm;
+      }
+      @media print {
+        html, body {
+          background: #ffffff !important;
+          color: #111827 !important;
+        }
+        h1, h2, h3, h4 {
+          page-break-after: avoid;
+          break-after: avoid;
+        }
+        pre, blockquote, img, table, tr {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+      }
+      body {
+        font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+        line-height: 1.7;
+        color: #111827;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      h1 { font-size: 2.25em; font-weight: 700; margin-top: 1em; margin-bottom: 0.5em; color: #111827; border-bottom: 2px solid #e5e7eb; padding-bottom: 0.3em; }
+      h2 { font-size: 1.75em; font-weight: 600; margin-top: 1.2em; margin-bottom: 0.4em; color: #1f2937; }
+      h3 { font-size: 1.375em; font-weight: 600; margin-top: 1em; margin-bottom: 0.4em; color: #374151; }
+      p { margin-bottom: 1em; }
+      ul, ol { padding-left: 24px; margin: 0.75em 0; }
+      li { margin-bottom: 0.25em; }
+      a { color: #2563eb; text-decoration: underline; }
+      blockquote { border-left: 4px solid #d1d5db; padding-left: 16px; margin: 1em 0; color: #6b7280; font-style: italic; }
+      code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+      pre { background: #f3f4f6; padding: 16px; border-radius: 8px; overflow-x: auto; }
+      hr { border: none; border-top: 2px solid #e5e7eb; margin: 2em 0; }
     </style>
   </head>
   <body>
@@ -495,6 +650,26 @@ export const EditorPage = () => {
     printWindow.focus();
     printWindow.print();
   }, [buildMarkdown, editor, title]);
+
+  // ---- Keyboard shortcuts ----
+
+  useKeyboardShortcuts(
+    {
+      onSave: flushSave,
+      onFind: () => setIsFindBarOpen((prev) => !prev),
+      onExportMd: () => handleExport('md'),
+      onExportPdf: () => handleExport('pdf'),
+      onShowShortcuts: () => setIsShortcutsModalOpen((prev) => !prev),
+      onClosePanel: () => {
+        if (isFindBarOpen) {
+          setIsFindBarOpen(false);
+        } else if (activePanel !== 'none') {
+          togglePanel(activePanel as 'versions' | 'comments');
+        }
+      },
+    },
+    true,
+  );
 
   // ---- Title editing ----
 
@@ -529,9 +704,9 @@ export const EditorPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-3 text-gray-500">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="flex flex-col items-center gap-3 text-gray-500 dark:text-gray-400">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 dark:text-blue-400" />
           <p className="text-sm">Loading document...</p>
         </div>
       </div>
@@ -540,13 +715,13 @@ export const EditorPage = () => {
 
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center max-w-md">
-          <div className="bg-red-100 p-4 rounded-full inline-block mb-4">
-            <AlertCircle className="h-8 w-8 text-red-600" />
+          <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-full inline-block mb-4">
+            <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Unable to load document</h2>
-          <p className="text-sm text-gray-500 mb-6">{loadError}</p>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Unable to load document</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">{loadError}</p>
           <button
             onClick={() => navigate('/dashboard')}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
@@ -560,15 +735,15 @@ export const EditorPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Top Bar */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-20">
+      <header className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-20">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Left: Back + Title */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={handleBack}
-              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors shrink-0"
               title="Back to Dashboard"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -582,26 +757,26 @@ export const EditorPage = () => {
                 onBlur={handleTitleBlur}
                 onKeyDown={handleTitleKeyDown}
                 autoFocus
-                className="text-lg font-semibold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none px-1 py-0.5 min-w-0 flex-1 max-w-lg"
+                className="text-lg font-semibold text-gray-900 dark:text-gray-100 bg-transparent border-b-2 border-blue-500 focus:outline-none px-1 py-0.5 min-w-0 flex-1 max-w-lg"
                 maxLength={255}
               />
             ) : (
-              <div className="flex items-center gap-2 max-w-lg min-w-0">
+              <div className="flex items-center gap-2 min-w-0 max-w-xs sm:max-w-md">
                 <h1
                   onClick={() => isOwner && setIsEditingTitle(true)}
-                  className={`text-lg font-semibold text-gray-900 truncate px-1 py-0.5 ${
-                    isOwner ? 'cursor-pointer hover:text-blue-700' : ''
+                  className={`text-lg font-semibold text-gray-900 dark:text-gray-100 truncate px-1 py-0.5 min-w-0 ${
+                    isOwner ? 'cursor-pointer hover:text-blue-700 dark:hover:text-blue-400' : ''
                   }`}
                   title={isOwner ? 'Click to rename' : undefined}
                 >
                   {title}
                 </h1>
                 {!isOwner && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded shrink-0 capitalize">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded shrink-0 capitalize select-none">
                     {canEdit ? (
-                      <Lock className="h-3 w-3 text-gray-400" />
+                      <Lock className="h-3 w-3 text-gray-400 dark:text-gray-500 shrink-0" />
                     ) : (
-                      <Eye className="h-3 w-3 text-gray-400" />
+                      <Eye className="h-3 w-3 text-gray-400 dark:text-gray-500 shrink-0" />
                     )}
                     {userRole}
                   </span>
@@ -611,16 +786,16 @@ export const EditorPage = () => {
           </div>
 
           {/* Right: Presence Avatars + Panel Buttons + Share + Save Status */}
-          <div className="flex items-center gap-2 shrink-0 ml-4">
-            <PresenceAvatars users={activeUsers} currentUserId={user?._id} />
-            <div className="h-4 w-px bg-gray-200" />
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-3 sm:ml-4">
+            <PresenceAvatars users={activeUsers} typingUsers={typingUsers} currentUserId={user?._id} currentUser={user} document={document} />
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-600" />
 
             {/* Save Version Button */}
             {canEdit && (
               <button
                 onClick={handleSaveVersion}
                 disabled={isSavingVersion}
-                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
                 title="Save version snapshot"
               >
                 {isSavingVersion ? (
@@ -631,25 +806,33 @@ export const EditorPage = () => {
               </button>
             )}
 
+            {/* Import Markdown */}
+            {canEdit && (
+              <ImportMarkdownButton
+                editor={editor}
+                disabled={!canEdit || isPreviewingVersion}
+              />
+            )}
+
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu((prev) => !prev)}
-                className="inline-flex items-center justify-center p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="inline-flex items-center justify-center p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                 title="Download as Markdown or PDF"
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 top-full mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg z-30">
+                <div className="absolute right-0 top-full mt-2 w-44 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg z-30">
                   <button
                     onClick={() => handleExport('md')}
-                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Download .md
                   </button>
                   <button
                     onClick={() => handleExport('pdf')}
-                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
                     Download PDF
                   </button>
@@ -662,8 +845,8 @@ export const EditorPage = () => {
               onClick={() => togglePanel('versions')}
               className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 activePanel === 'versions'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
               title="Version history"
             >
@@ -675,15 +858,24 @@ export const EditorPage = () => {
               onClick={() => togglePanel('comments')}
               className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 activePanel === 'comments'
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
               title="Comments"
             >
               <MessageSquare className="h-3.5 w-3.5" />
             </button>
 
-            <div className="h-4 w-px bg-gray-200" />
+            {/* Keyboard Shortcuts Button */}
+            <button
+              onClick={() => setIsShortcutsModalOpen(true)}
+              className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              title="Keyboard shortcuts (Ctrl+/)"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-600" />
             <button
               onClick={() => setIsShareModalOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
@@ -707,8 +899,23 @@ export const EditorPage = () => {
         }}
       />
 
+      {/* Keyboard Shortcuts Modal */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsModalOpen}
+        onClose={() => setIsShortcutsModalOpen(false)}
+      />
+
       {/* Toolbar */}
       <EditorToolbar editor={editor} disabled={!canEdit} />
+
+      {/* Find & Replace Bar */}
+      <FindReplaceBar
+        editor={editor}
+        isOpen={isFindBarOpen}
+        onClose={() => setIsFindBarOpen(false)}
+      />
+
+ 
 
       {/* Main content area with optional side panel */}
       <div className="flex-1 flex overflow-hidden">
@@ -716,14 +923,14 @@ export const EditorPage = () => {
         <div className="flex-1 overflow-y-auto">
           {/* Version preview banner */}
           {isPreviewingVersion && (
-            <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-center gap-2 text-sm text-amber-800">
+            <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 px-4 py-2 flex items-center justify-center gap-2 text-sm text-amber-800 dark:text-amber-300">
               <Eye className="h-4 w-4" />
               <span className="font-medium">Previewing a previous version</span>
-              <span className="text-amber-600">— The editor is read-only</span>
+              <span className="text-amber-600 dark:text-amber-400">— The editor is read-only</span>
             </div>
           )}
           <div className="max-w-4xl w-full mx-auto py-12 px-4 sm:px-6">
-            <div className="bg-white border border-gray-300 shadow-sm rounded min-h-[800px]">
+            <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 shadow-sm rounded min-h-[800px] dark:text-gray-100">
               <EditorContent editor={editor} />
             </div>
           </div>
@@ -758,7 +965,7 @@ export const EditorPage = () => {
   );
 };
 
-/** Save status indicator with distinct states. */
+/** Save status indicator with fixed width slot to prevent header layout shifts. */
 const SaveIndicator = ({
   status,
   onRetry,
@@ -766,48 +973,58 @@ const SaveIndicator = ({
   status: SaveStatus;
   onRetry: () => void;
 }) => {
-  switch (status) {
-    case 'unsaved':
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-amber-600">
-          <CircleDot className="h-3.5 w-3.5" />
-          Unsaved changes
-        </span>
-      );
-    case 'saving':
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-blue-500">
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          Saving...
-        </span>
-      );
-    case 'saved':
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-green-600">
-          <Check className="h-3.5 w-3.5" />
-          Saved
-        </span>
-      );
-    case 'error':
-      return (
-        <span className="flex items-center gap-2 text-xs text-red-500">
-          <CloudOff className="h-3.5 w-3.5" />
-          Save failed
-          <button
-            onClick={onRetry}
-            className="flex items-center gap-1 ml-1 px-2 py-0.5 rounded bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
-            title="Retry save"
+  const renderContent = () => {
+    switch (status) {
+      case 'unsaved':
+        return (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap animate-in fade-in duration-150">
+            <CircleDot className="h-3.5 w-3.5 shrink-0" />
+            Unsaved
+          </span>
+        );
+      case 'saving':
+        return (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-blue-500 dark:text-blue-400 whitespace-nowrap animate-in fade-in duration-150">
+            <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            Saving...
+          </span>
+        );
+      case 'saved':
+        return (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 dark:text-green-400 whitespace-nowrap animate-in fade-in duration-150">
+            <Check className="h-3.5 w-3.5 shrink-0" />
+            Saved
+          </span>
+        );
+      case 'error':
+        return (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-red-500 dark:text-red-400 whitespace-nowrap animate-in fade-in duration-150">
+            <CloudOff className="h-3.5 w-3.5 shrink-0" />
+            <button
+              onClick={onRetry}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 transition-colors"
+              title="Retry save"
+            >
+              <RefreshCw className="h-3 w-3" />
+              Retry
+            </button>
+          </span>
+        );
+      default:
+        return (
+          <span
+            className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap animate-in fade-in duration-150"
+            title="All changes saved to cloud"
           >
-            <RefreshCw className="h-3 w-3" />
-            Retry
-          </button>
-        </span>
-      );
-    default:
-      return (
-        <span className="flex items-center gap-1.5 text-xs text-gray-400">
-          <Cloud className="h-3.5 w-3.5" />
-        </span>
-      );
-  }
+            <Cloud className="h-3.5 w-3.5 shrink-0" />
+          </span>
+        );
+    }
+  };
+
+  return (
+    <div className="w-16 min-w-[64px] flex items-center justify-end shrink-0 select-none overflow-hidden">
+      {renderContent()}
+    </div>
+  );
 };

@@ -78,8 +78,17 @@ export const initSocket = (server: HttpServer) => {
 
     // Handle presence cleanup on disconnect
     socket.on('disconnecting', () => {
+      const user = socket.data.user;
       for (const room of socket.rooms) {
         if (room.startsWith('doc:')) {
+          if (user) {
+            socket.to(room).emit('cursor:update', {
+              userId: user.id,
+              userName: user.name,
+              color: user.avatarColor || '#3B82F6',
+              cursor: null,
+            });
+          }
           // Broadcast presence update after this socket leaves
           setTimeout(() => {
             broadcastPresence(room);
@@ -173,6 +182,15 @@ function registerDocumentHandlers(socket: AppSocket) {
   socket.on('document:leave', async ({ documentId }) => {
     if (!documentId || typeof documentId !== 'string') return;
     const room = `doc:${documentId}`;
+    const user = socket.data.user;
+    if (user) {
+      socket.to(room).emit('cursor:update', {
+        userId: user.id,
+        userName: user.name,
+        color: user.avatarColor || '#3B82F6',
+        cursor: null,
+      });
+    }
     socket.leave(room);
     logger.info(`User ${socket.data.userId} left room ${room}`);
 
@@ -210,6 +228,45 @@ function registerDocumentHandlers(socket: AppSocket) {
     } catch (error) {
       logger.error('Error broadcasting document content', { error });
     }
+  });
+
+  // Broadcast cursor position to other users
+  socket.on('cursor:update', ({ documentId, cursor }) => {
+    if (!documentId || typeof documentId !== 'string') return;
+    const room = `doc:${documentId}`;
+    const user = socket.data.user;
+    if (!user) return;
+
+    socket.to(room).emit('cursor:update', {
+      userId: user.id,
+      userName: user.name,
+      color: user.avatarColor || '#3B82F6',
+      cursor,
+    });
+  });
+
+  // Broadcast typing indicators
+  socket.on('typing:start', ({ documentId }) => {
+    if (!documentId || typeof documentId !== 'string') return;
+    const room = `doc:${documentId}`;
+    const user = socket.data.user;
+    if (!user) return;
+
+    socket.to(room).emit('typing:start', {
+      userId: user.id,
+      userName: user.name,
+    });
+  });
+
+  socket.on('typing:stop', ({ documentId }) => {
+    if (!documentId || typeof documentId !== 'string') return;
+    const room = `doc:${documentId}`;
+    const user = socket.data.user;
+    if (!user) return;
+
+    socket.to(room).emit('typing:stop', {
+      userId: user.id,
+    });
   });
 }
 

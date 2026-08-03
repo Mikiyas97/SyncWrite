@@ -53,8 +53,8 @@ export const DocumentCard = ({
   const myRole = isOwner ? 'owner' : (myCollaborator?.role || null);
 
   const roleConfig = {
-    viewer: { label: 'Viewer', icon: Eye, color: 'text-gray-500 bg-gray-50' },
-    commenter: { label: 'Commenter', icon: MessageSquare, color: 'text-violet-600 bg-violet-50' },
+    viewer: { label: 'Viewer', icon: Eye, color: 'text-blue-600 bg-gray-50' },
+    commenter: { label: 'Commenter', icon: MessageSquare, color: 'text-blue-600 bg-violet-50' },
     editor: { label: 'Editor', icon: Pencil, color: 'text-blue-600 bg-blue-50' },
   } as const;
 
@@ -85,7 +85,7 @@ export const DocumentCard = ({
   return (
     <Link
       to={`/documents/${document._id}`}
-      className="block group relative w-full text-left bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all duration-200 cursor-pointer no-underline"
+      className="block group relative w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all duration-200 cursor-pointer no-underline"
     >
       {/* Context Menu Button */}
       <div className="absolute top-4 right-4 z-10" ref={menuRef}>
@@ -95,18 +95,18 @@ export const DocumentCard = ({
             e.stopPropagation();
             setIsMenuOpen(!isMenuOpen);
           }}
-          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+          className="p-1.5 rounded-lg text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
           data-state={isMenuOpen ? 'open' : 'closed'}
         >
           <MoreVertical className="h-4 w-4" />
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 mt-1 w-40 bg-white rounded-xl shadow-lg border border-gray-100 py-1 z-20 animate-in fade-in slide-in-from-top-2">
+          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-20 animate-in fade-in slide-in-from-top-2">
             {isOwner && (
               <button
                 onClick={(e) => handleAction(e, () => onRename(document._id, document.title))}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 <Edit2 className="h-4 w-4 text-gray-400" />
                 Rename
@@ -115,7 +115,7 @@ export const DocumentCard = ({
             
             <button
               onClick={(e) => handleAction(e, () => onDuplicate(document._id))}
-              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
             >
               <Copy className="h-4 w-4 text-gray-400" />
               Duplicate
@@ -124,7 +124,7 @@ export const DocumentCard = ({
             {isOwner && (
               <button
                 onClick={(e) => handleAction(e, () => onDelete(document._id))}
-                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
                 Delete
@@ -140,10 +140,10 @@ export const DocumentCard = ({
           <FileText className="h-5 w-5 text-blue-600" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors" title={document.title}>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors" title={document.title}>
             {document.title}
           </h3>
-          <p className="text-xs text-gray-500 mt-0.5 truncate">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
             {isOwner ? 'Owned by you' : `Shared by ${document.owner.name}`}
           </p>
         </div>
@@ -157,8 +157,8 @@ export const DocumentCard = ({
       </div>
 
       {/* Footer: updated time + collaborators */}
-      <div className="flex items-center justify-between pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+      <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
           <Clock className="h-3.5 w-3.5" />
           <span>Edited {formatDate(document.updatedAt)}</span>
         </div>
