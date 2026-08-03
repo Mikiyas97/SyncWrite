@@ -6,10 +6,13 @@ A collaborative document editor built with React, TypeScript, Express, MongoDB, 
 
 - User authentication with email/password and Google sign-in
 - Document creation, renaming, duplication, and deletion
+- Document favorites and pinning per user for organized workspace navigation
+- Interactive dashboard stat cards (All Documents, Owned by me, Shared with me, Favorites, Pinned)
 - Real-time collaboration using Socket.IO
 - Presence awareness for active document collaborators
 - Document comments and threaded replies
 - Version history and manual restore
+- Activity feed and audit logging for document edits and collaboration actions
 - Collaborator sharing with role-based access control
 - REST API backend with validation, authentication, and logging
 - Tailwind CSS-powered dashboard and editor UI
@@ -215,6 +218,32 @@ Indexes:
 
 - `{ document: 1, versionNumber: -1 }`
 
+### DocumentPreference
+
+Per-user document preferences (favorites & pinned):
+
+- `user`: ObjectId -> User
+- `document`: ObjectId -> Document
+- `isPinned`: boolean
+- `isFavorite`: boolean
+- `createdAt`, `updatedAt`
+
+Unique index: `{ user: 1, document: 1 }`
+
+### Activity
+
+Audit log and document activity feed:
+
+- `document`: ObjectId -> Document
+- `user`: ObjectId -> User
+- `action`: string (e.g. `document_created`, `title_updated`, `collaborator_added`)
+- `details`: Record<string, any>
+- `createdAt`, `updatedAt`
+
+Indexes:
+
+- `{ document: 1, createdAt: -1 }`
+
 ## REST API Documentation
 
 ### Auth
@@ -272,6 +301,19 @@ All document routes require authentication and a valid JWT.
 
 - `DELETE /api/documents/:id`
   - Deletes the document.
+
+### Document Preferences
+
+- `PATCH /api/documents/:id/favorite`
+  - Toggles favorite status for the document for the requesting user.
+
+- `PATCH /api/documents/:id/pin`
+  - Toggles pin status for the document for the requesting user.
+
+### Document Activity Feed
+
+- `GET /api/documents/:id/activity`
+  - Returns recent audit log activity items for the document.
 
 ### Collaborators
 
