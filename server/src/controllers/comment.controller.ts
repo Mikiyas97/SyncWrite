@@ -5,6 +5,7 @@ import Comment from '../models/Comment';
 import { AppError } from '../utils/AppError';
 import { getIO } from '../socket';
 import { logger } from '../utils/logger';
+import { logActivity } from '../utils/activityLogger';
 
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
@@ -137,6 +138,11 @@ export const addComment = async (req: Request, res: Response, next: NextFunction
 
     broadcastCommentUpdated(documentId);
 
+    logActivity(documentId, userId, 'comment_added', {
+      commentId: commentDoc._id.toString(),
+      commentSnippet: content.slice(0, 80),
+    });
+
     res.status(201).json({
       success: true,
       message: 'Comment added successfully',
@@ -190,6 +196,12 @@ export const addReply = async (req: Request, res: Response, next: NextFunction) 
     await replyDoc.populate('author', 'name email avatarColor');
 
     broadcastCommentUpdated(documentId);
+
+    logActivity(documentId, userId, 'comment_replied', {
+      commentId: replyDoc._id.toString(),
+      parentCommentId: commentId,
+      commentSnippet: content.slice(0, 80),
+    });
 
     res.status(201).json({
       success: true,
@@ -248,6 +260,10 @@ export const resolveComment = async (req: Request, res: Response, next: NextFunc
 
     broadcastCommentUpdated(documentId);
 
+    logActivity(documentId, userId, comment.isResolved ? 'comment_resolved' : 'comment_reopened', {
+      commentId: comment._id.toString(),
+    });
+
     res.status(200).json({
       success: true,
       message: comment.isResolved ? 'Comment resolved' : 'Comment re-opened',
@@ -302,6 +318,11 @@ export const deleteComment = async (req: Request, res: Response, next: NextFunct
     }
 
     broadcastCommentUpdated(documentId);
+
+    logActivity(documentId, userId, 'comment_deleted', {
+      commentId: comment._id.toString(),
+      isTopLevel: !comment.parentComment,
+    });
 
     res.status(200).json({
       success: true,

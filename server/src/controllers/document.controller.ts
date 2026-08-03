@@ -6,6 +6,7 @@ import Version from '../models/Version';
 import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { getIO } from '../socket';
+import { logActivity } from '../utils/activityLogger';
 
 const AUTO_CHECKPOINT_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -30,6 +31,10 @@ export const createDocument = async (req: Request, res: Response, next: NextFunc
 
     // Populate owner details for the response
     await document.populate('owner', 'name email avatarColor');
+
+    logActivity(document._id.toString(), req.user._id.toString(), 'document_created', {
+      title: document.title,
+    });
 
     res.status(201).json({
       success: true,
@@ -194,11 +199,17 @@ export const renameDocument = async (req: Request, res: Response, next: NextFunc
       return next(new AppError('Only the document owner can rename this document', 403));
     }
 
+    const oldTitle = document.title;
     document.title = title;
     await document.save();
 
     await document.populate('owner', 'name email avatarColor');
     await document.populate('collaborators.user', 'name email avatarColor');
+
+    logActivity(id, req.user._id.toString(), 'document_renamed', {
+      oldTitle,
+      newTitle: title,
+    });
 
     res.status(200).json({
       success: true,
@@ -434,6 +445,12 @@ export const addCollaborator = async (req: Request, res: Response, next: NextFun
     await document.populate('owner', 'name email avatarColor');
     await document.populate('collaborators.user', 'name email avatarColor');
 
+    logActivity(id, req.user._id.toString(), 'collaborator_added', {
+      targetUser: targetUser._id.toString(),
+      targetUserName: targetUser.name,
+      role: role || 'viewer',
+    });
+
     res.status(200).json({
       success: true,
       message: 'Collaborator added successfully',
@@ -520,11 +537,18 @@ export const updateCollaboratorRole = async (req: Request, res: Response, next: 
       return next(new AppError('Collaborator not found on this document', 404));
     }
 
+    const oldRole = collaborator.role;
     collaborator.role = role;
     await document.save();
 
     await document.populate('owner', 'name email avatarColor');
     await document.populate('collaborators.user', 'name email avatarColor');
+
+    logActivity(id, req.user._id.toString(), 'collaborator_role_updated', {
+      targetUser: targetUserId,
+      oldRole,
+      newRole: role,
+    });
 
     res.status(200).json({
       success: true,
@@ -574,6 +598,11 @@ export const removeCollaborator = async (req: Request, res: Response, next: Next
 
     document.collaborators.splice(existingIndex, 1);
     await document.save();
+
+    logActivity(id, currentUserId, 'collaborator_removed', {
+      targetUser: targetUserId,
+      isSelfRemoval,
+    });
 
     res.status(200).json({
       success: true,

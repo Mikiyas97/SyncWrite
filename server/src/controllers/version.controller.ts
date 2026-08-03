@@ -5,6 +5,7 @@ import Version from '../models/Version';
 import { AppError } from '../utils/AppError';
 import { getIO } from '../socket';
 import { logger } from '../utils/logger';
+import { logActivity } from '../utils/activityLogger';
 
 const isValidObjectId = (id: string): boolean =>
   mongoose.Types.ObjectId.isValid(id);
@@ -251,6 +252,11 @@ export const restoreVersion = async (req: Request, res: Response, next: NextFunc
 
     await document.populate('owner', 'name email avatarColor');
     await document.populate('collaborators.user', 'name email avatarColor');
+
+    logActivity(documentId, userId, 'version_restored', {
+      versionNumber: oldVersion.versionNumber,
+      restoredVersionNumber: newVersionNumber,
+    });
 
     res.status(200).json({
       success: true,

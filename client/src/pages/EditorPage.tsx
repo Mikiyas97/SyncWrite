@@ -15,12 +15,14 @@ import { ImportMarkdownButton } from '../components/editor/ImportMarkdownButton'
 import { ShareModal } from '../components/documents/ShareModal';
 import { VersionHistoryPanel } from '../components/editor/VersionHistoryPanel';
 import { CommentsPanel } from '../components/editor/CommentsPanel';
+import { ActivityFeedPanel } from '../components/editor/ActivityFeedPanel';
 import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
 import { createManualVersion } from '../services/versionService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useAuth } from '../hooks/useAuth';
 import type { Document } from '../types/document';
+import type { ActivityItem } from '../types/activity';
 import {
   ArrowLeft,
   Cloud,
@@ -35,6 +37,7 @@ import {
   Lock,
   History,
   MessageSquare,
+  Activity,
   Save,
   Download,
   Keyboard,
@@ -64,8 +67,9 @@ export const EditorPage = () => {
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
 
   // Panel state: only one panel open at a time
-  type ActivePanel = 'none' | 'versions' | 'comments';
+  type ActivePanel = 'none' | 'versions' | 'comments' | 'activity';
   const [activePanel, setActivePanel] = useState<ActivePanel>('none');
+  const [latestActivity, setLatestActivity] = useState<ActivityItem | null>(null);
   const [isPreviewingVersion, setIsPreviewingVersion] = useState(false);
   const [isSavingVersion, setIsSavingVersion] = useState(false);
   const liveContentRef = useRef<Record<string, any> | null>(null);
@@ -118,6 +122,10 @@ export const EditorPage = () => {
     }
   }, []);
 
+  const handleActivityNew = useCallback((activity: any) => {
+    setLatestActivity(activity);
+  }, []);
+
   const {
     activeUsers,
     remoteCursors,
@@ -129,6 +137,7 @@ export const EditorPage = () => {
   } = useDocumentSocket(
     id,
     handleRemoteContent,
+    handleActivityNew,
   );
 
   const emitContentChangeRef = useRef(emitContentChange);
@@ -159,7 +168,7 @@ export const EditorPage = () => {
       try {
         isSavingRef.current = true;
         setSaveStatus('saving');
-        
+
         // Clear pending ref before saving. If user types during save, it will be populated again.
         pendingContentRef.current = null;
         await updateDocumentContent(id, content);
@@ -181,7 +190,7 @@ export const EditorPage = () => {
         setSaveStatus('error');
       } finally {
         isSavingRef.current = false;
-        
+
         // If user typed while we were saving, schedule another save
         if (pendingContentRef.current && saveTimerRef.current === null) {
           setSaveStatus('unsaved');
@@ -379,7 +388,7 @@ export const EditorPage = () => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (pendingContentRef.current && id) {
         e.preventDefault();
-        
+
         // Use fetch with keepalive to reliably send the save request as the page unloads
         const baseUrl = import.meta.env.VITE_API_URL || '/api';
         fetch(`${baseUrl}/documents/${id}/content`, {
@@ -416,7 +425,7 @@ export const EditorPage = () => {
 
   // ---- Panel toggles ----
 
-  const togglePanel = useCallback((panel: 'versions' | 'comments') => {
+  const togglePanel = useCallback((panel: 'versions' | 'comments' | 'activity') => {
     setActivePanel((prev) => (prev === panel ? 'none' : panel));
     // If we're previewing a version and closing the panel, restore live content
     if (isPreviewingVersion) {
@@ -664,7 +673,7 @@ export const EditorPage = () => {
         if (isFindBarOpen) {
           setIsFindBarOpen(false);
         } else if (activePanel !== 'none') {
-          togglePanel(activePanel as 'versions' | 'comments');
+          togglePanel(activePanel as 'versions' | 'comments' | 'activity');
         }
       },
     },
@@ -764,9 +773,8 @@ export const EditorPage = () => {
               <div className="flex items-center gap-2 min-w-0 max-w-xs sm:max-w-md">
                 <h1
                   onClick={() => isOwner && setIsEditingTitle(true)}
-                  className={`text-lg font-semibold text-gray-900 dark:text-gray-100 truncate px-1 py-0.5 min-w-0 ${
-                    isOwner ? 'cursor-pointer hover:text-blue-700 dark:hover:text-blue-400' : ''
-                  }`}
+                  className={`text-lg font-semibold text-gray-900 dark:text-gray-100 truncate px-1 py-0.5 min-w-0 ${isOwner ? 'cursor-pointer hover:text-blue-700 dark:hover:text-blue-400' : ''
+                    }`}
                   title={isOwner ? 'Click to rename' : undefined}
                 >
                   {title}
@@ -796,7 +804,7 @@ export const EditorPage = () => {
                 onClick={handleSaveVersion}
                 disabled={isSavingVersion}
                 className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50"
-                title="Save version snapshot"
+                title="Save version snapshot (Ctrl+S)"
               >
                 {isSavingVersion ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -814,27 +822,33 @@ export const EditorPage = () => {
               />
             )}
 
-            <div className="relative">
+            <div
+              className="relative"
+              onMouseEnter={() => setShowExportMenu(true)}
+              onMouseLeave={() => setShowExportMenu(false)}
+            >
               <button
                 onClick={() => setShowExportMenu((prev) => !prev)}
                 className="inline-flex items-center justify-center p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Download as Markdown or PDF"
+                title="Download Document (PDF / Markdown)"
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 top-full mt-2 w-44 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg z-30">
-                  <button
-                    onClick={() => handleExport('md')}
-                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    Download .md
-                  </button>
+                <div className="absolute right-0 top-full pt-1 w-44 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-lg z-30">
                   <button
                     onClick={() => handleExport('pdf')}
                     className="block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title="Download PDF (Ctrl+Shift+P)"
                   >
                     Download PDF
+                  </button>
+                  <button
+                    onClick={() => handleExport('md')}
+                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title="Download .md (Ctrl+Shift+E)"
+                  >
+                    Download .md
                   </button>
                 </div>
               )}
@@ -843,11 +857,10 @@ export const EditorPage = () => {
             {/* Version History Button */}
             <button
               onClick={() => togglePanel('versions')}
-              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                activePanel === 'versions'
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${activePanel === 'versions'
                   ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+                }`}
               title="Version history"
             >
               <History className="h-3.5 w-3.5" />
@@ -856,36 +869,25 @@ export const EditorPage = () => {
             {/* Comments Button */}
             <button
               onClick={() => togglePanel('comments')}
-              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                activePanel === 'comments'
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${activePanel === 'comments'
                   ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
+                }`}
               title="Comments"
             >
               <MessageSquare className="h-3.5 w-3.5" />
             </button>
 
-            {/* Find in Document Button */}
+            {/* Activity Feed Button */}
             <button
-              onClick={() => setIsFindBarOpen((prev) => !prev)}
-              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                isFindBarOpen
+              onClick={() => togglePanel('activity')}
+              className={`inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${activePanel === 'activity'
                   ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              title="Find in document (Ctrl+F)"
+                }`}
+              title="Activity Feed"
             >
-              <Search className="h-3.5 w-3.5" />
-            </button>
-
-            {/* Keyboard Shortcuts Button */}
-            <button
-              onClick={() => setIsShortcutsModalOpen(true)}
-              className="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Keyboard shortcuts (Ctrl+/)"
-            >
-              <Keyboard className="h-3.5 w-3.5" />
+              <Activity className="h-3.5 w-3.5" />
             </button>
 
             <div className="h-4 w-px bg-gray-200 dark:bg-gray-600" />
@@ -974,6 +976,16 @@ export const EditorPage = () => {
             userRole={userRole}
             currentUserId={currentUserId || ''}
             isDocumentOwner={isOwner}
+          />
+        )}
+
+        {/* Activity Feed Panel */}
+        {id && (
+          <ActivityFeedPanel
+            documentId={id}
+            isOpen={activePanel === 'activity'}
+            onClose={() => togglePanel('activity')}
+            liveActivity={latestActivity}
           />
         )}
       </div>

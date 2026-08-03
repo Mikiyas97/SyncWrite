@@ -21,6 +21,7 @@ export interface ServerToClientEvents {
   'cursor:update': (data: { userId: string; userName: string; color: string; cursor: CursorPosition | null }) => void;
   'typing:start': (data: { userId: string; userName: string }) => void;
   'typing:stop': (data: { userId: string }) => void;
+  'activity:new': (activity: any) => void;
 }
 
 export interface ClientToServerEvents {

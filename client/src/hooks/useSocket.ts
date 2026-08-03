@@ -66,6 +66,7 @@ export interface TypingUser {
 export const useDocumentSocket = (
   documentId: string | undefined,
   onRemoteContent: (content: Record<string, any>, userId: string) => void,
+  onActivityNew?: (activity: any) => void,
 ) => {
   const [isJoined, setIsJoined] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
@@ -73,11 +74,16 @@ export const useDocumentSocket = (
   const [remoteCursors, setRemoteCursors] = useState<Map<string, RemoteCursor>>(new Map());
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const onRemoteContentRef = useRef(onRemoteContent);
+  const onActivityNewRef = useRef(onActivityNew);
   const typingTimeoutsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     onRemoteContentRef.current = onRemoteContent;
   }, [onRemoteContent]);
+
+  useEffect(() => {
+    onActivityNewRef.current = onActivityNew;
+  }, [onActivityNew]);
 
   useEffect(() => {
     if (!documentId) return;
@@ -166,11 +172,17 @@ export const useDocumentSocket = (
       }
     };
 
+    const handleActivityNew = (activity: any) => {
+      if (isCancelled) return;
+      onActivityNewRef.current?.(activity);
+    };
+
     socket.on('document:content', handleRemoteContent);
     socket.on('presence:update', handlePresenceUpdate);
     socket.on('cursor:update', handleCursorUpdate);
     socket.on('typing:start', handleTypingStart);
     socket.on('typing:stop', handleTypingStop);
+    socket.on('activity:new', handleActivityNew);
     socket.on('connect', joinRoom);
 
     // If already connected, join room immediately
@@ -185,6 +197,7 @@ export const useDocumentSocket = (
       socket.off('cursor:update', handleCursorUpdate);
       socket.off('typing:start', handleTypingStart);
       socket.off('typing:stop', handleTypingStop);
+      socket.off('activity:new', handleActivityNew);
       socket.off('connect', joinRoom);
 
       if (socket.connected) {

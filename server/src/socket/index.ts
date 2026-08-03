@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import Document from '../models/Document';
 import User from '../models/User';
 import { logger } from '../utils/logger';
+import { logActivity } from '../utils/activityLogger';
 import type {
   ServerToClientEvents,
   ClientToServerEvents,
@@ -171,6 +172,9 @@ function registerDocumentHandlers(socket: AppSocket) {
       // Broadcast presence update to everyone in the room
       await broadcastPresence(room);
 
+      // Log collaborator joined activity event
+      logActivity(documentId, userId, 'collaborator_joined');
+
       safeAck(callback, { success: true });
     } catch (error) {
       logger.error('Error joining document room', { error });
@@ -196,6 +200,10 @@ function registerDocumentHandlers(socket: AppSocket) {
 
     // Broadcast presence update after user leaves
     await broadcastPresence(room);
+
+    if (user) {
+      logActivity(documentId, user.id, 'collaborator_left');
+    }
   });
 
   // Broadcast content changes to other users in the same document room (Owner & Editors only)

@@ -108,7 +108,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().setParagraph().run()}
           isActive={editor.isActive('paragraph') && !editor.isActive('heading')}
           disabled={disabled}
-          title="Normal Text"
+          title="Normal Text (Ctrl+Alt+0)"
         >
           <Pilcrow className="h-4 w-4" />
         </ToolbarButton>
@@ -116,7 +116,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           isActive={editor.isActive('heading', { level: 1 })}
           disabled={disabled}
-          title="Heading 1"
+          title="Heading 1 (Ctrl+Alt+1)"
         >
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
@@ -124,7 +124,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           isActive={editor.isActive('heading', { level: 2 })}
           disabled={disabled}
-          title="Heading 2"
+          title="Heading 2 (Ctrl+Alt+2)"
         >
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
@@ -132,7 +132,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           isActive={editor.isActive('heading', { level: 3 })}
           disabled={disabled}
-          title="Heading 3"
+          title="Heading 3 (Ctrl+Alt+3)"
         >
           <Heading3 className="h-4 w-4" />
         </ToolbarButton>
@@ -172,7 +172,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           isActive={editor.isActive('bulletList')}
           disabled={disabled}
-          title="Bullet List"
+          title="Bullet List (Ctrl+Shift+8)"
         >
           <List className="h-4 w-4" />
         </ToolbarButton>
@@ -180,7 +180,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           isActive={editor.isActive('orderedList')}
           disabled={disabled}
-          title="Numbered List"
+          title="Numbered List (Ctrl+Shift+7)"
         >
           <ListOrdered className="h-4 w-4" />
         </ToolbarButton>
@@ -192,7 +192,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().setTextAlign('left').run()}
           isActive={editor.isActive({ textAlign: 'left' })}
           disabled={disabled}
-          title="Align Left"
+          title="Align Left (Ctrl+Shift+L)"
         >
           <AlignLeft className="h-4 w-4" />
         </ToolbarButton>
@@ -200,7 +200,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().setTextAlign('center').run()}
           isActive={editor.isActive({ textAlign: 'center' })}
           disabled={disabled}
-          title="Align Center"
+          title="Align Center (Ctrl+Shift+E)"
         >
           <AlignCenter className="h-4 w-4" />
         </ToolbarButton>
@@ -208,7 +208,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().setTextAlign('right').run()}
           isActive={editor.isActive({ textAlign: 'right' })}
           disabled={disabled}
-          title="Align Right"
+          title="Align Right (Ctrl+Shift+R)"
         >
           <AlignRight className="h-4 w-4" />
         </ToolbarButton>
@@ -216,7 +216,7 @@ export const EditorToolbar = ({
           onClick={() => editor.chain().focus().setTextAlign('justify').run()}
           isActive={editor.isActive({ textAlign: 'justify' })}
           disabled={disabled}
-          title="Justify"
+          title="Justify (Ctrl+Shift+J)"
         >
           <AlignJustify className="h-4 w-4" />
         </ToolbarButton>
