@@ -30,6 +30,7 @@ import {
   History,
   MessageSquare,
   Save,
+  Download,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
@@ -49,6 +50,7 @@ export const EditorPage = () => {
   const [title, setTitle] = useState('');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Panel state: only one panel open at a time
   type ActivePanel = 'none' | 'versions' | 'comments';
@@ -370,6 +372,130 @@ export const EditorPage = () => {
     }
   }, [id, isSavingVersion, flushSave]);
 
+  const buildMarkdown = useCallback(() => {
+    const content = editor?.getJSON()?.content || [];
+
+    const renderInline = (nodes: Array<Record<string, any>> = []): string => {
+      return (nodes || []).reduce((text: string, node: Record<string, any> | undefined) => {
+        if (!node) return text;
+
+        if (node.type === 'text') {
+          let value = node.text || '';
+          const marks = node.marks || [];
+          const linkMark = marks.find((mark: Record<string, any>) => mark.type === 'link');
+
+          if (linkMark?.attrs?.href) {
+            value = `[${value}](${linkMark.attrs.href})`;
+          }
+          if (marks.some((mark: Record<string, any>) => mark.type === 'bold')) {
+            value = `**${value}**`;
+          }
+          if (marks.some((mark: Record<string, any>) => mark.type === 'italic')) {
+            value = `*${value}*`;
+          }
+          if (marks.some((mark: Record<string, any>) => mark.type === 'underline')) {
+            value = `<u>${value}</u>`;
+          }
+
+          return text + value;
+        }
+
+        if (node.type === 'hardBreak') {
+          return text + '\n';
+        }
+
+        if (node.content) {
+          return text + renderInline(node.content);
+        }
+
+        return text;
+      }, '');
+    };
+
+    const renderBlock = (node: Record<string, any>, listPrefix?: string): string[] => {
+      if (!node) return [];
+
+      switch (node.type) {
+        case 'paragraph': {
+          const text = renderInline(node.content || []);
+          return text.trim() ? [text] : [];
+        }
+        case 'heading': {
+          const level = node.attrs?.level || 1;
+          const text = renderInline(node.content || []);
+          return text.trim() ? [`${'#'.repeat(level)} ${text}`] : [];
+        }
+        case 'bulletList': {
+          return (node.content || []).flatMap((item: Record<string, any>) => renderBlock(item, '•'));
+        }
+        case 'orderedList': {
+          return (node.content || []).flatMap((item: Record<string, any>, index: number) => renderBlock(item, `${index + 1}.`));
+        }
+        case 'listItem': {
+          const lines = (node.content || []).flatMap((child: Record<string, any>) => renderBlock(child, listPrefix));
+          return lines.map((line: string) => `${listPrefix} ${line}`.replace(new RegExp(`^${listPrefix} `), `${listPrefix} `));
+        }
+        default:
+          if (node.content) {
+            return (node.content || []).flatMap((child: Record<string, any>) => renderBlock(child, listPrefix));
+          }
+          return [];
+      }
+    };
+
+    const lines = (content || []).flatMap((node: Record<string, any>) => renderBlock(node));
+    return lines.join('\n\n').trim();
+  }, [editor]);
+
+  const handleExport = useCallback((format: 'md' | 'pdf') => {
+    setShowExportMenu(false);
+
+    if (!editor) return;
+
+    const exportTitle = (title || 'document').trim() || 'document';
+    const safeTitle = exportTitle.replace(/[^a-z0-9-_]+/gi, '-').replace(/-+/g, '-').toLowerCase();
+
+    if (format === 'md') {
+      const markdown = buildMarkdown();
+      const blob = new Blob([markdown || ''], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `${safeTitle}.md`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>${exportTitle}</title>
+    <style>
+      body { font-family: Arial, sans-serif; padding: 24px; line-height: 1.6; color: #111827; }
+      h1, h2, h3 { color: #111827; }
+      ul, ol { padding-left: 20px; }
+      a { color: #2563eb; }
+    </style>
+  </head>
+  <body>
+    ${editor.getHTML()}
+  </body>
+</html>`;
+
+    const printWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!printWindow) return;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  }, [buildMarkdown, editor, title]);
+
   // ---- Title editing ----
 
   const handleTitleBlur = async () => {
@@ -504,6 +630,32 @@ export const EditorPage = () => {
                 )}
               </button>
             )}
+
+            <div className="relative">
+              <button
+                onClick={() => setShowExportMenu((prev) => !prev)}
+                className="inline-flex items-center justify-center p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Download as Markdown or PDF"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg z-30">
+                  <button
+                    onClick={() => handleExport('md')}
+                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Download .md
+                  </button>
+                  <button
+                    onClick={() => handleExport('pdf')}
+                    className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Version History Button */}
             <button

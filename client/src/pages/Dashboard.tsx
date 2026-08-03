@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDocuments } from '../hooks/useDocuments';
 import { DashboardLayout } from '../components/layout/DashboardLayout';
@@ -8,6 +9,7 @@ import { useSocket } from '../hooks/useSocket';
 import { Plus, FolderOpen, Users, Clock, Loader2, AlertCircle } from 'lucide-react';
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { isConnected, error: socketError } = useSocket();
   const {
@@ -33,7 +35,8 @@ export const Dashboard = () => {
   const handleCreate = async () => {
     try {
       setIsActionLoading(true);
-      await createDocument();
+      const createdDocument = await createDocument();
+      navigate(`/documents/${createdDocument._id}`);
     } catch (err) {
       console.error('Failed to create document:', err);
     } finally {

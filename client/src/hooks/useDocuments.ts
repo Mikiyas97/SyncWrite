@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as documentService from '../services/documentService';
-import type { DocumentListResponse } from '../types/document';
+import type { Document, DocumentListResponse } from '../types/document';
 
 interface UseDocumentsReturn {
   documents: DocumentListResponse | null;
@@ -8,7 +8,7 @@ interface UseDocumentsReturn {
   error: string | null;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  createDocument: (title?: string) => Promise<void>;
+  createDocument: (title?: string) => Promise<Document>;
   renameDocument: (id: string, title: string) => Promise<void>;
   duplicateDocument: (id: string) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
@@ -61,8 +61,9 @@ export const useDocuments = (): UseDocumentsReturn => {
   }, [searchQuery, fetchDocuments]);
 
   const createDoc = useCallback(async (title?: string) => {
-    await documentService.createDocument(title);
+    const createdDocument = await documentService.createDocument(title);
     await fetchDocuments(searchQuery);
+    return createdDocument;
   }, [fetchDocuments, searchQuery]);
 
   const renameDoc = useCallback(async (id: string, title: string) => {
