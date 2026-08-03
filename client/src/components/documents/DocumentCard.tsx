@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2, Eye, MessageSquare, Pencil } from 'lucide-react';
+import { FileText, Clock, Users, MoreVertical, Edit2, Copy, Trash2, Eye, MessageSquare, Pencil, Star, Pin } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import type { Document } from '../../types/document';
 
 interface DocumentCardProps {
   document: Document;
   currentUserId: string;
+  onToggleFavorite?: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -38,6 +40,8 @@ function formatDate(dateString: string): string {
 export const DocumentCard = ({
   document,
   currentUserId,
+  onToggleFavorite,
+  onTogglePin,
   onRename,
   onDuplicate,
   onDelete,
@@ -47,6 +51,8 @@ export const DocumentCard = ({
 
   const isOwner = document.owner._id === currentUserId;
   const collaboratorCount = document.collaborators.length;
+  const isFav = !!document.isFavorite;
+  const isPin = !!document.isPinned;
 
   // Determine the user's role on this document
   const myCollaborator = document.collaborators.find(c => c.user._id === currentUserId);
@@ -88,7 +94,41 @@ export const DocumentCard = ({
       className="block group relative w-full text-left bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-md transition-all duration-200 cursor-pointer no-underline"
     >
       {/* Context Menu Button */}
-      <div className="absolute top-4 right-4 z-10" ref={menuRef}>
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-1" ref={menuRef}>
+        {onTogglePin && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onTogglePin(document._id);
+            }}
+            className={`p-1 rounded-lg transition-colors focus:outline-none ${
+              isPin
+                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                : 'text-gray-300 dark:text-gray-600 hover:text-blue-500 opacity-0 group-hover:opacity-100'
+            }`}
+            title={isPin ? 'Unpin document' : 'Pin document'}
+          >
+            <Pin className={`h-3.5 w-3.5 ${isPin ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
+          </button>
+        )}
+        {onToggleFavorite && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onToggleFavorite(document._id);
+            }}
+            className={`p-1 rounded-lg transition-colors focus:outline-none ${
+              isFav
+                ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/30'
+                : 'text-gray-300 dark:text-gray-600 hover:text-amber-400 opacity-0 group-hover:opacity-100'
+            }`}
+            title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.preventDefault();
@@ -102,7 +142,25 @@ export const DocumentCard = ({
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-20 animate-in fade-in slide-in-from-top-2">
+          <div className="absolute right-0 top-8 mt-1 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-20 animate-in fade-in slide-in-from-top-2">
+            {onTogglePin && (
+              <button
+                onClick={(e) => handleAction(e, () => onTogglePin(document._id))}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Pin className={`h-4 w-4 ${isPin ? 'text-blue-600 fill-blue-600' : 'text-gray-400'}`} />
+                {isPin ? 'Unpin document' : 'Pin to top'}
+              </button>
+            )}
+            {onToggleFavorite && (
+              <button
+                onClick={(e) => handleAction(e, () => onToggleFavorite(document._id))}
+                className="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Star className={`h-4 w-4 ${isFav ? 'text-amber-400 fill-amber-400' : 'text-gray-400'}`} />
+                {isFav ? 'Remove favorite' : 'Add to favorites'}
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={(e) => handleAction(e, () => onRename(document._id, document.title))}

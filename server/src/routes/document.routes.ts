@@ -11,6 +11,8 @@ import {
   getCollaborators,
   updateCollaboratorRole,
   removeCollaborator,
+  toggleFavoriteDocument,
+  togglePinDocument,
 } from '../controllers/document.controller';
 import { protect } from '../middleware/auth';
 import { validate } from '../middleware/validate';
@@ -36,6 +38,10 @@ router.patch('/:id/rename', validate(renameDocumentSchema), renameDocument);
 router.post('/:id/duplicate', validate(documentIdParamSchema), duplicateDocument);
 router.patch('/:id/content', validate(updateContentSchema), updateContent);
 router.delete('/:id', validate(documentIdParamSchema), deleteDocument);
+
+// Document Preference routes (favorite & pin)
+router.patch('/:id/favorite', validate(documentIdParamSchema), toggleFavoriteDocument);
+router.patch('/:id/pin', validate(documentIdParamSchema), togglePinDocument);
 
 // Collaborator sharing routes
 router.post('/:id/collaborators', validate(addCollaboratorSchema), addCollaborator);

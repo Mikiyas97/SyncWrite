@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FileText, Star, MoreHorizontal, Edit2, Copy, Trash2 } from 'lucide-react';
+import { FileText, Star, Pin, MoreHorizontal, Edit2, Copy, Trash2 } from 'lucide-react';
 import { Avatar } from '../ui/Avatar';
 import type { Document } from '../../types/document';
 
 interface DocumentTableRowProps {
   document: Document;
   currentUserId: string;
+  onToggleFavorite?: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   isStarred?: boolean;
   onToggleStar?: (id: string) => void;
   onRename: (id: string, title: string) => void;
@@ -75,6 +77,8 @@ function formatDateWithRelative(dateString: string): string {
 export const DocumentTableRow = ({
   document,
   currentUserId,
+  onToggleFavorite,
+  onTogglePin,
   isStarred = false,
   onToggleStar,
   onRename,
@@ -86,6 +90,8 @@ export const DocumentTableRow = ({
 
   const isOwner = document.owner._id === currentUserId;
   const iconColorStyle = getDocumentIconColor(document._id, document.title);
+  const isFav = document.isFavorite ?? isStarred;
+  const isPin = !!document.isPinned;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -106,6 +112,19 @@ export const DocumentTableRow = ({
     action();
   };
 
+  const handleFav = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onToggleFavorite) onToggleFavorite(document._id);
+    else if (onToggleStar) onToggleStar(document._id);
+  };
+
+  const handlePin = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onTogglePin) onTogglePin(document._id);
+  };
+
   return (
     <div className="group relative flex items-center justify-between px-4 py-3.5 hover:bg-gray-50/80 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700/60 last:border-0 text-sm">
       {/* Left: Document Icon & Title */}
@@ -119,22 +138,30 @@ export const DocumentTableRow = ({
         >
           {document.title}
         </Link>
-        {onToggleStar && (
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onToggleStar(document._id);
-            }}
-            className="p-1 text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400 transition-colors focus:outline-none shrink-0"
-            title={isStarred ? 'Unstar document' : 'Star document'}
-          >
-            <Star
-              className={`h-4 w-4 ${
-                isStarred ? 'fill-amber-400 text-amber-400' : 'fill-none'
+        <div className="flex items-center gap-1 shrink-0">
+          {onTogglePin && (
+            <button
+              onClick={handlePin}
+              className={`p-1 transition-colors focus:outline-none shrink-0 ${
+                isPin
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-gray-300 dark:text-gray-600 hover:text-blue-500'
               }`}
-            />
-          </button>
-        )}
+              title={isPin ? 'Unpin document' : 'Pin document'}
+            >
+              <Pin className={`h-4 w-4 ${isPin ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
+            </button>
+          )}
+          {(onToggleFavorite || onToggleStar) && (
+            <button
+              onClick={handleFav}
+              className="p-1 text-gray-300 dark:text-gray-600 hover:text-amber-400 dark:hover:text-amber-400 transition-colors focus:outline-none shrink-0"
+              title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Star className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-400' : 'fill-none'}`} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Owner */}
@@ -174,7 +201,28 @@ export const DocumentTableRow = ({
         </button>
 
         {isMenuOpen && (
-          <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-30 animate-in fade-in slide-in-from-top-2">
+          <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 py-1 z-30 animate-in fade-in slide-in-from-top-2">
+            {onTogglePin && (
+              <button
+                onClick={(e) => handleAction(e, () => onTogglePin(document._id))}
+                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Pin className={`h-3.5 w-3.5 ${isPin ? 'text-blue-600 fill-blue-600' : 'text-gray-400'}`} />
+                {isPin ? 'Unpin document' : 'Pin to top'}
+              </button>
+            )}
+            {(onToggleFavorite || onToggleStar) && (
+              <button
+                onClick={(e) => handleAction(e, () => {
+                  if (onToggleFavorite) onToggleFavorite(document._id);
+                  else if (onToggleStar) onToggleStar(document._id);
+                })}
+                className="w-full flex items-center gap-2 px-3.5 py-2 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Star className={`h-3.5 w-3.5 ${isFav ? 'text-amber-400 fill-amber-400' : 'text-gray-400'}`} />
+                {isFav ? 'Remove favorite' : 'Add to favorites'}
+              </button>
+            )}
             {isOwner && (
               <button
                 onClick={(e) => handleAction(e, () => onRename(document._id, document.title))}

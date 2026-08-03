@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import Document from '../models/Document';
 import User from '../models/User';
 import Version from '../models/Version';
+import DocumentPreference from '../models/DocumentPreference';
 import { AppError } from '../utils/AppError';
 import { logger } from '../utils/logger';
 import { getIO } from '../socket';
@@ -76,17 +77,41 @@ export const listDocuments = async (req: Request, res: Response, next: NextFunct
       .sort({ updatedAt: -1 })
       .lean();
 
+    // Fetch user preferences for these documents
+    const preferences = await DocumentPreference.find({ user: userId }).lean();
+    const prefMap = new Map<string, { isPinned: boolean; isFavorite: boolean }>();
+    preferences.forEach((pref) => {
+      prefMap.set(pref.document.toString(), {
+        isPinned: !!pref.isPinned,
+        isFavorite: !!pref.isFavorite,
+      });
+    });
+
+    const attachPreferences = (doc: any) => {
+      const pref = prefMap.get(doc._id.toString());
+      return {
+        ...doc,
+        isPinned: pref ? pref.isPinned : false,
+        isFavorite: pref ? pref.isFavorite : false,
+      };
+    };
+
+    const documentsWithPref = documents.map(attachPreferences);
+
     // Separate into categories for the client
-    const owned = documents.filter(
+    const owned = documentsWithPref.filter(
       (doc) => doc.owner._id.toString() === userId.toString()
     );
 
-    const shared = documents.filter(
+    const shared = documentsWithPref.filter(
       (doc) => doc.owner._id.toString() !== userId.toString()
     );
 
+    const pinned = documentsWithPref.filter((doc) => doc.isPinned);
+    const favorites = documentsWithPref.filter((doc) => doc.isFavorite);
+
     // Recently opened: filter docs where this user has a lastOpenedBy entry, sort by openedAt
-    const recentlyOpened = documents
+    const recentlyOpened = documentsWithPref
       .filter((doc) =>
         doc.lastOpenedBy?.some(
           (entry: any) => entry.user.toString() === userId.toString()
@@ -112,6 +137,8 @@ export const listDocuments = async (req: Request, res: Response, next: NextFunct
         owned,
         shared,
         recentlyOpened,
+        pinned,
+        favorites,
         total: documents.length,
       },
     });
@@ -166,9 +193,18 @@ export const getDocument = async (req: Request, res: Response, next: NextFunctio
     }
     await document.save();
 
+    // Fetch user preference for this document
+    const pref = await DocumentPreference.findOne({ user: req.user._id, document: id }).lean();
+
     res.status(200).json({
       success: true,
-      data: { document },
+      data: {
+        document: {
+          ...document.toObject(),
+          isPinned: pref ? pref.isPinned : false,
+          isFavorite: pref ? pref.isFavorite : false,
+        },
+      },
     });
   } catch (error) {
     next(error);
@@ -612,3 +648,100 @@ export const removeCollaborator = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
+
+/**
+ * PATCH /api/documents/:id/favorite
+ * Toggle favorite status for a document for the current user.
+ */
+export const toggleFavoriteDocument = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.user._id;
+
+    if (!isValidObjectId(id)) {
+      return next(new AppError('Invalid document ID', 400));
+    }
+
+    const document = await Document.findById(id).lean();
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    const isOwner = document.owner.toString() === userId.toString();
+    const isCollaborator = document.collaborators.some(
+      (c: any) => c.user.toString() === userId.toString()
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return next(new AppError('You do not have access to this document', 403));
+    }
+
+    let pref = await DocumentPreference.findOne({ user: userId, document: id });
+    if (!pref) {
+      pref = new DocumentPreference({ user: userId, document: id, isFavorite: true, isPinned: false });
+    } else {
+      pref.isFavorite = !pref.isFavorite;
+    }
+    await pref.save();
+
+    res.status(200).json({
+      success: true,
+      message: pref.isFavorite ? 'Document added to favorites' : 'Document removed from favorites',
+      data: {
+        isFavorite: pref.isFavorite,
+        isPinned: pref.isPinned,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PATCH /api/documents/:id/pin
+ * Toggle pin status for a document for the current user.
+ */
+export const togglePinDocument = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.user._id;
+
+    if (!isValidObjectId(id)) {
+      return next(new AppError('Invalid document ID', 400));
+    }
+
+    const document = await Document.findById(id).lean();
+    if (!document) {
+      return next(new AppError('Document not found', 404));
+    }
+
+    const isOwner = document.owner.toString() === userId.toString();
+    const isCollaborator = document.collaborators.some(
+      (c: any) => c.user.toString() === userId.toString()
+    );
+
+    if (!isOwner && !isCollaborator) {
+      return next(new AppError('You do not have access to this document', 403));
+    }
+
+    let pref = await DocumentPreference.findOne({ user: userId, document: id });
+    if (!pref) {
+      pref = new DocumentPreference({ user: userId, document: id, isFavorite: false, isPinned: true });
+    } else {
+      pref.isPinned = !pref.isPinned;
+    }
+    await pref.save();
+
+    res.status(200).json({
+      success: true,
+      message: pref.isPinned ? 'Document pinned' : 'Document unpinned',
+      data: {
+        isFavorite: pref.isFavorite,
+        isPinned: pref.isPinned,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

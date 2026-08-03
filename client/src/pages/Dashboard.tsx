@@ -37,11 +37,13 @@ export const Dashboard = () => {
     renameDocument,
     duplicateDocument,
     deleteDocument,
+    toggleFavoriteDocument,
+    togglePinDocument,
   } = useDocuments();
 
   // Layout view & filter state
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  const [filterCategory, setFilterCategory] = useState<'all' | 'owned' | 'shared'>('all');
+  const [filterCategory, setFilterCategory] = useState<'all' | 'pinned' | 'favorites' | 'owned' | 'shared'>('all');
   const [showAllDocs, setShowAllDocs] = useState(false);
   const [starredDocIds, setStarredDocIds] = useState<string[]>(() => {
     try {
@@ -61,15 +63,7 @@ export const Dashboard = () => {
   const userId = user?._id || '';
 
   const handleToggleStar = (id: string) => {
-    setStarredDocIds((prev) => {
-      const updated = prev.includes(id) ? prev.filter((dId) => dId !== id) : [...prev, id];
-      try {
-        localStorage.setItem('syncwrite_starred_docs', JSON.stringify(updated));
-      } catch (e) {
-        console.error('Failed to save starred state:', e);
-      }
-      return updated;
-    });
+    toggleFavoriteDocument(id).catch((err) => console.error('Failed to toggle favorite:', err));
   };
 
   const handleCreate = async () => {
@@ -123,19 +117,33 @@ export const Dashboard = () => {
 
   const isSearching = searchQuery.trim().length > 0;
 
+  // Helper to ensure pinned documents are always pinned at the top
+  const sortByPinnedAndRecent = (list: Document[]): Document[] => {
+    return [...list].sort((a, b) => {
+      const pinA = a.isPinned ? 1 : 0;
+      const pinB = b.isPinned ? 1 : 0;
+      if (pinA !== pinB) return pinB - pinA;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  };
+
   // Filter documents according to selected category and search query
   const filteredDocuments = (): Document[] => {
     if (!documents) return [];
     let baseList: Document[] = [];
-    if (filterCategory === 'owned') {
-      baseList = documents.owned;
+    if (filterCategory === 'pinned') {
+      baseList = documents.pinned || [];
+    } else if (filterCategory === 'favorites') {
+      baseList = sortByPinnedAndRecent(documents.favorites || []);
+    } else if (filterCategory === 'owned') {
+      baseList = sortByPinnedAndRecent(documents.owned || []);
     } else if (filterCategory === 'shared') {
-      baseList = documents.shared;
+      baseList = sortByPinnedAndRecent(documents.shared || []);
     } else {
       const docMap = new Map<string, Document>();
-      documents.owned.forEach((d) => docMap.set(d._id, d));
-      documents.shared.forEach((d) => docMap.set(d._id, d));
-      baseList = Array.from(docMap.values());
+      const allDocs = [...documents.owned, ...documents.shared];
+      allDocs.forEach((d) => docMap.set(d._id, d));
+      baseList = sortByPinnedAndRecent(Array.from(docMap.values()));
     }
 
     if (searchQuery.trim()) {
@@ -157,6 +165,8 @@ export const Dashboard = () => {
   const ownedCount = documents ? documents.owned.length : 0;
   const sharedCount = documents ? documents.shared.length : 0;
   const recentCount = documents ? documents.recentlyOpened.length : 0;
+  const pinnedCount = documents ? (documents.pinned?.length || 0) : 0;
+  const favoriteCount = documents ? (documents.favorites?.length || 0) : 0;
 
   return (
     <DashboardLayout searchQuery={searchQuery} onSearchChange={setSearchQuery}>
@@ -207,13 +217,20 @@ export const Dashboard = () => {
         </div>
       )}
 
-      {/* Top 4 Summary Stat Cards */}
+      {/* Top 5 Summary Stat Cards */}
       {documents && !isSearching && (
         <DashboardStatCards
           allCount={allCount}
           ownedCount={ownedCount}
           sharedCount={sharedCount}
           recentCount={recentCount}
+          pinnedCount={pinnedCount}
+          favoriteCount={favoriteCount}
+          activeCategory={filterCategory}
+          onSelectCategory={(category) => {
+            setFilterCategory(category);
+            setShowAllDocs(false);
+          }}
         />
       )}
 
@@ -240,8 +257,8 @@ export const Dashboard = () => {
             <DocumentTableView
               documents={allFilteredDocs}
               currentUserId={userId}
-              starredDocIds={starredDocIds}
-              onToggleStar={handleToggleStar}
+              onToggleFavorite={toggleFavoriteDocument}
+              onTogglePin={togglePinDocument}
               onRename={(id, title) => {
                 setRenameModalDoc({ id, title });
                 setNewTitle(title);
@@ -267,7 +284,15 @@ export const Dashboard = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100 dark:border-gray-700/80 mb-2">
                     <div className="flex items-center gap-2">
                       <h2 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                        Your Documents
+                        {filterCategory === 'pinned'
+                          ? 'Pinned Documents'
+                          : filterCategory === 'favorites'
+                          ? 'Favorite Documents'
+                          : filterCategory === 'owned'
+                          ? 'Owned Documents'
+                          : filterCategory === 'shared'
+                          ? 'Shared Documents'
+                          : 'Your Documents'}
                       </h2>
                       <span className="text-xs text-gray-400 font-medium">
                         ({allFilteredDocs.length})
@@ -286,6 +311,8 @@ export const Dashboard = () => {
                           className="appearance-none bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 rounded-xl pl-3 pr-8 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                         >
                           <option value="all">All Documents</option>
+                          <option value="pinned">Pinned Documents</option>
+                          <option value="favorites">Favorite Documents</option>
                           <option value="owned">Owned by me</option>
                           <option value="shared">Shared with me</option>
                         </select>
@@ -325,8 +352,8 @@ export const Dashboard = () => {
                     <DocumentTableView
                       documents={displayedDocs}
                       currentUserId={userId}
-                      starredDocIds={starredDocIds}
-                      onToggleStar={handleToggleStar}
+                      onToggleFavorite={toggleFavoriteDocument}
+                      onTogglePin={togglePinDocument}
                       onRename={(id, title) => {
                         setRenameModalDoc({ id, title });
                         setNewTitle(title);
@@ -339,7 +366,11 @@ export const Dashboard = () => {
                         })
                       }
                       emptyMessage={
-                        filterCategory === 'owned'
+                        filterCategory === 'pinned'
+                          ? "You haven't pinned any documents yet."
+                          : filterCategory === 'favorites'
+                          ? "You haven't favorited any documents yet."
+                          : filterCategory === 'owned'
                           ? "You haven't created any documents yet."
                           : filterCategory === 'shared'
                           ? 'No documents have been shared with you.'
@@ -350,7 +381,15 @@ export const Dashboard = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                       {displayedDocs.length === 0 ? (
                         <div className="col-span-full py-12 text-center text-xs text-gray-400 dark:text-gray-500">
-                          No documents found.
+                          {filterCategory === 'pinned'
+                            ? "You haven't pinned any documents yet."
+                            : filterCategory === 'favorites'
+                            ? "You haven't favorited any documents yet."
+                            : filterCategory === 'owned'
+                            ? "You haven't created any documents yet."
+                            : filterCategory === 'shared'
+                            ? 'No documents have been shared with you.'
+                            : 'No documents found.'}
                         </div>
                       ) : (
                         displayedDocs.map((doc) => (
@@ -358,6 +397,8 @@ export const Dashboard = () => {
                             key={doc._id}
                             document={doc}
                             currentUserId={userId}
+                            onToggleFavorite={toggleFavoriteDocument}
+                            onTogglePin={togglePinDocument}
                             onRename={(id, title) => {
                               setRenameModalDoc({ id, title });
                               setNewTitle(title);

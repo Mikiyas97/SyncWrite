@@ -16,7 +16,7 @@ import { ShareModal } from '../components/documents/ShareModal';
 import { VersionHistoryPanel } from '../components/editor/VersionHistoryPanel';
 import { CommentsPanel } from '../components/editor/CommentsPanel';
 import { ActivityFeedPanel } from '../components/editor/ActivityFeedPanel';
-import { getDocument, updateDocumentContent, renameDocument } from '../services/documentService';
+import { getDocument, updateDocumentContent, renameDocument, toggleFavoriteDocument, togglePinDocument } from '../services/documentService';
 import { createManualVersion } from '../services/versionService';
 import { useSocket, useDocumentSocket } from '../hooks/useSocket';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
@@ -42,6 +42,8 @@ import {
   Download,
   Keyboard,
   Search,
+  Star,
+  Pin,
 } from 'lucide-react';
 
 type SaveStatus = 'idle' | 'unsaved' | 'saving' | 'saved' | 'error';
@@ -709,6 +711,26 @@ export const EditorPage = () => {
     }
   };
 
+  const handleToggleFavorite = async () => {
+    if (!id || !document) return;
+    try {
+      const res = await toggleFavoriteDocument(id);
+      setDocument((prev) => (prev ? { ...prev, isFavorite: res.isFavorite, isPinned: res.isPinned } : null));
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    if (!id || !document) return;
+    try {
+      const res = await togglePinDocument(id);
+      setDocument((prev) => (prev ? { ...prev, isFavorite: res.isFavorite, isPinned: res.isPinned } : null));
+    } catch (err) {
+      console.error('Failed to toggle pin:', err);
+    }
+  };
+
   // ---- Render states ----
 
   if (isLoading) {
@@ -748,7 +770,7 @@ export const EditorPage = () => {
       {/* Top Bar */}
       <header className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-20">
         <div className="flex items-center justify-between px-4 py-3">
-          {/* Left: Back + Title */}
+          {/* Left: Back + Title + Preferences */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={handleBack}
@@ -789,6 +811,34 @@ export const EditorPage = () => {
                     {userRole}
                   </span>
                 )}
+              </div>
+            )}
+
+            {/* Favorite & Pin buttons */}
+            {document && (
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                <button
+                  onClick={handleTogglePin}
+                  className={`p-1.5 rounded-lg transition-colors focus:outline-none ${
+                    document.isPinned
+                      ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title={document.isPinned ? 'Unpin document' : 'Pin document'}
+                >
+                  <Pin className={`h-4 w-4 ${document.isPinned ? 'fill-blue-600 text-blue-600 dark:fill-blue-400 dark:text-blue-400' : ''}`} />
+                </button>
+                <button
+                  onClick={handleToggleFavorite}
+                  className={`p-1.5 rounded-lg transition-colors focus:outline-none ${
+                    document.isFavorite
+                      ? 'text-amber-400 bg-amber-50 dark:bg-amber-900/30'
+                      : 'text-gray-400 dark:text-gray-500 hover:text-amber-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
+                  title={document.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <Star className={`h-4 w-4 ${document.isFavorite ? 'fill-amber-400 text-amber-400' : ''}`} />
+                </button>
               </div>
             )}
           </div>

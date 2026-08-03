@@ -12,6 +12,8 @@ interface UseDocumentsReturn {
   renameDocument: (id: string, title: string) => Promise<void>;
   duplicateDocument: (id: string) => Promise<void>;
   deleteDocument: (id: string) => Promise<void>;
+  toggleFavoriteDocument: (id: string) => Promise<void>;
+  togglePinDocument: (id: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -81,6 +83,16 @@ export const useDocuments = (): UseDocumentsReturn => {
     await fetchDocuments(searchQuery);
   }, [fetchDocuments, searchQuery]);
 
+  const toggleFavorite = useCallback(async (id: string) => {
+    await documentService.toggleFavoriteDocument(id);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
+  const togglePin = useCallback(async (id: string) => {
+    await documentService.togglePinDocument(id);
+    await fetchDocuments(searchQuery);
+  }, [fetchDocuments, searchQuery]);
+
   return {
     documents,
     isLoading,
@@ -91,6 +103,8 @@ export const useDocuments = (): UseDocumentsReturn => {
     renameDocument: renameDoc,
     duplicateDocument: duplicateDoc,
     deleteDocument: deleteDoc,
+    toggleFavoriteDocument: toggleFavorite,
+    togglePinDocument: togglePin,
     refresh: () => fetchDocuments(searchQuery),
   };
 };

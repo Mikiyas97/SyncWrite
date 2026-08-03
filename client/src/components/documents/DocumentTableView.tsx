@@ -6,8 +6,10 @@ import type { Document } from '../../types/document';
 interface DocumentTableViewProps {
   documents: Document[];
   currentUserId: string;
-  starredDocIds: string[];
-  onToggleStar: (id: string) => void;
+  starredDocIds?: string[];
+  onToggleStar?: (id: string) => void;
+  onToggleFavorite?: (id: string) => void;
+  onTogglePin?: (id: string) => void;
   onRename: (id: string, currentTitle: string) => void;
   onDuplicate: (id: string) => void;
   onDelete: (id: string) => void;
@@ -17,17 +19,19 @@ interface DocumentTableViewProps {
 export const DocumentTableView = ({
   documents,
   currentUserId,
-  starredDocIds,
+  starredDocIds = [],
   onToggleStar,
+  onToggleFavorite,
+  onTogglePin,
   onRename,
   onDuplicate,
   onDelete,
   emptyMessage = 'No documents found.',
 }: DocumentTableViewProps) => {
-  const [sortField, setSortField] = useState<'title' | 'createdAt' | 'updatedAt'>('updatedAt');
+  const [sortField, setSortField] = useState<'title' | 'createdAt' | 'updatedAt' | 'pinned'>('updatedAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const handleSort = (field: 'title' | 'createdAt' | 'updatedAt') => {
+  const handleSort = (field: 'title' | 'createdAt' | 'updatedAt' | 'pinned') => {
     if (sortField === field) {
       setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -38,6 +42,12 @@ export const DocumentTableView = ({
 
   const sortedDocuments = useMemo(() => {
     return [...documents].sort((a, b) => {
+      // Pinned documents are always pinned at the top
+      const pinA = a.isPinned ? 1 : 0;
+      const pinB = b.isPinned ? 1 : 0;
+      if (pinA !== pinB) {
+        return pinB - pinA;
+      }
       if (sortField === 'title') {
         return sortOrder === 'asc'
           ? a.title.localeCompare(b.title)
@@ -112,6 +122,8 @@ export const DocumentTableView = ({
             currentUserId={currentUserId}
             isStarred={starredDocIds.includes(doc._id)}
             onToggleStar={onToggleStar}
+            onToggleFavorite={onToggleFavorite}
+            onTogglePin={onTogglePin}
             onRename={onRename}
             onDuplicate={onDuplicate}
             onDelete={onDelete}

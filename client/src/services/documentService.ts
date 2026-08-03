@@ -51,6 +51,26 @@ export const deleteDocument = async (id: string): Promise<void> => {
 };
 
 /**
+ * Toggle favorite status of a document.
+ */
+export const toggleFavoriteDocument = async (
+  id: string
+): Promise<{ isFavorite: boolean; isPinned: boolean }> => {
+  const res = await api.patch(`/documents/${id}/favorite`);
+  return res.data.data;
+};
+
+/**
+ * Toggle pin status of a document.
+ */
+export const togglePinDocument = async (
+  id: string
+): Promise<{ isFavorite: boolean; isPinned: boolean }> => {
+  const res = await api.patch(`/documents/${id}/pin`);
+  return res.data.data;
+};
+
+/**
  * Update document content (Tiptap JSON).
  */
 export const updateDocumentContent = async (

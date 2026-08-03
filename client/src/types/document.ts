@@ -25,6 +25,8 @@ export interface Document {
     user: string;
     openedAt: string;
   }>;
+  isPinned?: boolean;
+  isFavorite?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +35,8 @@ export interface DocumentListResponse {
   owned: Document[];
   shared: Document[];
   recentlyOpened: Document[];
+  pinned: Document[];
+  favorites: Document[];
   total: number;
 }
 
